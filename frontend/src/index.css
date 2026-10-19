@@ -1,0 +1,672 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+:root {
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #101a2f;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+body {
+  min-height: 100vh;
+  overflow: hidden;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+/* ==========================================
+   MAIN PAGE
+========================================== */
+.parent-portal {
+  position: relative;
+  min-height: 100svh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  overflow: auto;
+  background-image: url("/try.png");
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.parent-portal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(12, 27, 49, 0.04)
+  );
+}
+/* ==========================================
+   GLASS CARD
+========================================== */
+.glass-card {
+  position: relative;
+  z-index: 1;
+  width: min(620px, 94vw);
+  max-height: calc(100svh - 64px);
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 28px 80px rgba(11, 25, 44, 0.28),
+    0 8px 26px rgba(11, 25, 44, 0.14);
+}
+.glass-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+}
+/* ==========================================
+   AUTH CONTENT
+========================================== */
+.auth-content {
+  padding: 34px 42px 38px;
+}
+/* ==========================================
+   BRAND
+========================================== */
+.brand {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #1d5fff;
+  background: #fff;
+  border: 1px solid #e3eaf5;
+  box-shadow: 0 8px 22px rgba(26, 72, 137, 0.12);
+}
+.brand-name {
+  font-size: 20px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #12203a;
+}
+.brand-caption {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #71809a;
+}
+.brand-logo {
+  width: 200px;
+  height: 100px;
+  object-fit: contain;
+  display: block;
+}
+/* ==========================================
+   AUTH TABS
+========================================== */
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 5px;
+  margin-bottom: 27px;
+  border-radius: 13px;
+  background: #edf2f8;
+  border: 1px solid #e3e9f2;
+}
+.auth-tab {
+  border: 0;
+  border-radius: 9px;
+  padding: 11px 14px;
+  background: transparent;
+  color: #6c7890;
+  font-weight: 600;
+  transition: 0.2s ease;
+}
+.auth-tab:hover {
+  color: #17243a;
+}
+.auth-tab.active {
+  color: #173a82;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(22, 46, 85, 0.1);
+}
+/* ==========================================
+   FORM HEADING
+========================================== */
+.form-heading {
+  margin-bottom: 20px;
+}
+.form-heading h1,
+.success-panel h1 {
+  margin: 0;
+  color: #14213a;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+}
+.form-heading p,
+.success-panel p {
+  margin: 8px 0 0;
+  color: #71809a;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.form-heading strong {
+  color: #253653;
+  font-weight: 600;
+}
+/* ==========================================
+   FORM GRID
+========================================== */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.field {
+  min-width: 0;
+}
+.field-label {
+  display: block;
+  margin: 0 0 7px;
+  color: #2a3850;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.required {
+  color: #e05656;
+  margin-left: 3px;
+}
+/* ==========================================
+   INPUTS
+========================================== */
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  border: 1px solid #dbe3ee;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #8b98aa;
+  transition: 0.18s ease;
+}
+.input-wrap:focus-within {
+  border-color: #6f98ee;
+  box-shadow: 0 0 0 3px rgba(55, 111, 230, 0.1);
+}
+.input-wrap svg {
+  flex: 0 0 auto;
+  margin-left: 14px;
+}
+.input-wrap input,
+.input-wrap select {
+  width: 100%;
+  height: 46px;
+  padding: 0 13px;
+  border: 0;
+  outline: 0;
+  color: #172033;
+  background: transparent;
+  font-size: 13px;
+}
+.input-wrap input::placeholder {
+  color: #a4afbd;
+}
+.select-wrap select {
+  appearance: none;
+  padding-right: 40px;
+  cursor: pointer;
+}
+.select-icon {
+  position: absolute;
+  right: 12px;
+  margin: 0 !important;
+  pointer-events: none;
+  color: #8491a4;
+}
+.input-wrap.has-error {
+  border-color: #dd6a6a;
+}
+.field-error {
+  margin: 6px 2px 0;
+  color: #c44949;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.field-hint {
+  margin: 6px 2px 0;
+  color: #8b97a8;
+  font-size: 11px;
+}
+/* ==========================================
+   PRIMARY / SECONDARY BUTTONS
+========================================== */
+.primary-button,
+.secondary-button {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 11px;
+  font-weight: 600;
+  font-size: 13px;
+  transition: 0.2s ease;
+}
+.primary-button {
+  color: #fff;
+  background: #2364e8;
+  box-shadow: 0 8px 18px rgba(35, 100, 232, 0.22);
+}
+.primary-button:hover {
+  background: #1e58d0;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(35, 100, 232, 0.27);
+}
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.auth-tab:focus-visible,
+.social-button:focus-visible,
+.back-link:focus-visible,
+.text-button:focus-visible {
+  outline: 3px solid rgba(35, 100, 232, 0.22);
+  outline-offset: 2px;
+}
+.secondary-button {
+  width: auto;
+  padding: 0 18px;
+  margin-top: 20px;
+  color: #204b9b;
+  background: #eef4ff;
+}
+/* ==========================================
+   SOCIAL LOGIN BUTTONS
+========================================== */
+.social-stack {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin-bottom: 21px;
+}
+.social-button {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 45px;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid #dbe3ee;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #26354d;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: 0.18s ease;
+  white-space: nowrap;
+}
+.social-button:hover {
+  border-color: #c5d2e4;
+  background: #ffffff;
+  box-shadow: 0 5px 14px rgba(27, 53, 91, 0.07);
+}
+.google-g {
+  flex: 0 0 auto;
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 700;
+  color: #4285f4;
+}
+.microsoft-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  grid-template-rows: 1fr 1fr !important;
+  gap: 2px;
+}
+.microsoft-icon i {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+}
+.microsoft-icon i:nth-child(1) {
+  background: #f35325;
+}
+.microsoft-icon i:nth-child(2) {
+  background: #81bc06;
+}
+.microsoft-icon i:nth-child(3) {
+  background: #05a6f0;
+}
+.microsoft-icon i:nth-child(4) {
+  background: #ffba08;
+}
+/* ==========================================
+   DIVIDER
+========================================== */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: #98a3b4;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #e1e7ef;
+}
+/* ==========================================
+   STATUS MESSAGE
+========================================== */
+.status-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.status-message.success {
+  color: #286a4d;
+  background: #edf8f1;
+  border: 1px solid #d6eedf;
+}
+.status-message.info {
+  color: #2e5f9e;
+  background: #eef5ff;
+  border: 1px solid #dbe9ff;
+}
+/* ==========================================
+   SECURITY NOTE
+========================================== */
+.security-note {
+  display: flex;
+  gap: 9px;
+  margin-top: 19px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: #f3f6fa;
+  color: #738198;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.security-note svg {
+  flex: 0 0 auto;
+  color: #4e79c9;
+  margin-top: 1px;
+}
+/* ==========================================
+   LINKS / TEXT BUTTONS
+========================================== */
+.back-link,
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #2e64c7;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 17px;
+}
+.back-link:hover,
+.text-button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.text-button:disabled {
+  color: #9ba6b5;
+  cursor: default;
+  text-decoration: none;
+}
+/* ==========================================
+   OTP
+========================================== */
+.otp-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin: 20px 0 4px;
+}
+.otp-input {
+  width: 100%;
+  height: 50px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #fff;
+  outline: 0;
+  text-align: center;
+  color: #1b2a42;
+  font-size: 20px;
+  font-weight: 700;
+}
+.otp-input:focus {
+  border-color: #6f98ee;
+  box-shadow: 0 0 0 3px rgba(55, 111, 230, 0.1);
+}
+.otp-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+.mock-note {
+  margin: 16px 0 0;
+  text-align: center;
+  color: #99a4b4;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+.centered-error {
+  text-align: center;
+}
+/* ==========================================
+   SUCCESS
+========================================== */
+.success-panel {
+  padding: 18px 0 6px;
+  text-align: center;
+}
+.success-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  color: #2e8a61;
+  background: #eaf8f0;
+}
+/* ==========================================
+   TABLET / MOBILE
+========================================== */
+@media (max-width: 700px) {
+    body {
+        overflow: auto;
+    }
+    .parent-portal {
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px 14px;
+        background-position: center center;
+    }
+    .glass-card {
+        width: min(100%, 560px);
+        max-height: none;
+        margin: auto;
+        border-radius: 24px;
+    }
+    .auth-content {
+        padding: 25px 22px 28px;
+    }
+    .form-grid {
+        grid-template-columns: 1fr;
+        gap: 13px;
+    }
+}
+/* ==========================================
+   SMALL MOBILE
+========================================== */
+@media (max-width: 500px) {
+  .social-stack {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 430px) {
+    .parent-portal {
+        padding: 12px;
+    }
+    .auth-content {
+        padding: 22px 17px 24px;
+    }
+    .brand {
+        margin-bottom: 20px;
+    }
+    .form-heading h1,
+    .success-panel h1 {
+        font-size: 25px;
+    }
+    .otp-row {
+        gap: 6px;
+    }
+    .otp-input {
+        height: 47px;
+        font-size: 18px;
+    }
+}
+/* ==========================================
+   GOOGLE + MICROSOFT SIDE-BY-SIDE BUTTONS
+   ========================================== */
+.social-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 12px !important;
+    margin: 0 0 21px 0 !important;
+}
+.social-action-button {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 0 12px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 9px !important;
+    border: 1px solid #dbe3ee !important;
+    border-radius: 11px !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #26354d !important;
+    font-family: inherit !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    cursor: pointer;
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        background 0.18s ease,
+        transform 0.18s ease;
+}
+.social-action-button:hover {
+    border-color: #c5d2e4 !important;
+    background: #ffffff !important;
+    box-shadow: 0 5px 14px rgba(27, 53, 91, 0.08);
+    transform: translateY(-1px);
+}
+.social-action-button:active {
+    transform: translateY(0);
+}
+/* GOOGLE */
+.social-action-button .google-g {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    font-size: 17px;
+    line-height: 1;
+    font-weight: 700;
+    color: #4285f4;
+}
+/* MICROSOFT */
+.social-action-button .microsoft-icon {
+    width: 16px !important;
+    height: 16px !important;
+    flex: 0 0 16px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: 1fr 1fr !important;
+    gap: 2px !important;
+}
+.social-action-button .microsoft-icon i {
+    display: block !important;
+    width: 100%;
+    height: 100%;
+}
+.social-action-button .microsoft-icon i:nth-child(1) {
+    background: #f35325;
+}
+.social-action-button .microsoft-icon i:nth-child(2) {
+    background: #81bc06;
+}
+.social-action-button .microsoft-icon i:nth-child(3) {
+    background: #05a6f0;
+}
+.social-action-button .microsoft-icon i:nth-child(4) {
+    background: #ffba08;
+}
