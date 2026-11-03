@@ -28,10 +28,12 @@ const withOnlyLocationBackgroundMode: ConfigPlugin = (cfg) =>
 const config: ExpoConfig = {
   name: "YE Team Leader",
   slug: "young-edsplorer-team-leader",
+  owner: "rishikasadhukhan",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",
+  extra: { eas: { projectId: "1da84732-bf1a-40d4-9db6-a3fd6eceb615" } },
   ios: {
     bundleIdentifier: "com.youngedsplorer.teamleader",
     supportsTablet: false,
