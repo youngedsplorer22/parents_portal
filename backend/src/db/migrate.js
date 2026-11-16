@@ -2,41 +2,76 @@
 // transaction, and records them in schema_migrations.
 //
 // Usage:
-//   node --env-file=.env src/db/migrate.js          -> DATABASE_URL (dev)
-//   node --env-file=.env src/db/migrate.js --test   -> TEST_DATABASE_URL
+//   node --env-file=.env src/db/migrate.js                 -> DATABASE_URL (local development database)
+//   node --env-file=.env src/db/migrate.js --test          -> TEST_DATABASE_URL (local test database)
+//   node src/db/migrate.js --production                    -> the production database (npm run migrate:production)
+//
+// A production run changes real data's schema, so it never happens by accident. All of these must hold, or it refuses:
+//   - the --production flag, and NODE_ENV=production;
+//   - ALLOW_PRODUCTION_DATABASE=true (the same explicit opt-in the server needs);
+//   - MIGRATE_CONFIRM_DATABASE equal to the name of the database in DATABASE_URL (the name typed again, on purpose);
+//   - the database is not a test database, and TEST_DATABASE_URL is not set.
+// Local runs only ever touch parents_portal_dev (default) or parents_portal_test (--test), on this machine.
+// Nothing about transactions, the advisory lock or the checksums differs between the modes.
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
+import { parseDatabaseUrl, resolveDatabaseTarget } from "./target.js";
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 // Arbitrary constant so concurrent runs of this script serialize.
 const ADVISORY_LOCK_KEY = 727001;
 
-function resolveTarget(useTest) {
+/**
+ * Which database this run may change: { envName, database, host, connectionString, production }, or an Error saying why not.
+ * Pure: reads only `argv` and `env`, connects to nothing.
+ */
+export function resolveTarget(argv = process.argv.slice(2), env = process.env) {
+  const useTest = argv.includes("--test");
+  const useProduction = argv.includes("--production");
+  if (useTest && useProduction) throw new Error("--test and --production cannot be combined");
+
+  if (useProduction) {
+    if (env.NODE_ENV !== "production") throw new Error("--production requires NODE_ENV=production");
+    // The same rules as the server: another host only with the opt-in, never a test database, never next to TEST_DATABASE_URL.
+    const target = resolveDatabaseTarget(env);
+    if (env.ALLOW_PRODUCTION_DATABASE !== "true") throw new Error("a production migration requires ALLOW_PRODUCTION_DATABASE=true");
+    if (!env.MIGRATE_CONFIRM_DATABASE || env.MIGRATE_CONFIRM_DATABASE !== target.database) {
+      throw new Error(`a production migration requires MIGRATE_CONFIRM_DATABASE to be set to the database name ("${target.database}")`);
+    }
+    return { envName: "DATABASE_URL", database: target.database, host: target.host, connectionString: target.connectionString, production: true };
+  }
+
+  if (useTest && env.NODE_ENV === "production") throw new Error("--test must never run with NODE_ENV=production");
+  if (env.NODE_ENV === "production") {
+    throw new Error("NODE_ENV=production: run production migrations with --production (npm run migrate:production)");
+  }
+
   const envName = useTest ? "TEST_DATABASE_URL" : "DATABASE_URL";
   const expectedDb = useTest ? "parents_portal_test" : "parents_portal_dev";
-  const raw = process.env[envName];
-  if (!raw) throw new Error(`${envName} is not set`);
+  const target = parseDatabaseUrl(env[envName], envName);
+  if (!target.local) throw new Error(`${envName} must point at localhost or 127.0.0.1 (got "${target.host}")`);
+  if (target.database !== expectedDb) throw new Error(`${envName} must use database "${expectedDb}" (got "${target.database}")`);
+  return { envName, database: target.database, host: target.host, connectionString: target.connectionString, production: false };
+}
 
-  const url = new URL(raw);
-  const database = decodeURIComponent(url.pathname.slice(1));
-  if (!LOCAL_HOSTS.has(url.hostname)) {
-    throw new Error(`${envName} must point at localhost or 127.0.0.1 (got "${url.hostname}")`);
+/** A readable reason for a failure. Some connection errors (a refused connection to "localhost") have an empty message. */
+export function describeError(err) {
+  if (err?.message) return err.message;
+  if (Array.isArray(err?.errors)) {
+    const reasons = [...new Set(err.errors.map((e) => e?.code || e?.message).filter(Boolean))];
+    if (reasons.length) return reasons.join(", ");
   }
-  if (database !== expectedDb) {
-    throw new Error(`${envName} must use database "${expectedDb}" (got "${database}")`);
-  }
-  return { envName, database, connectionString: raw };
+  return err?.code || "unknown error";
 }
 
 async function main() {
-  const target = resolveTarget(process.argv.includes("--test"));
+  const target = resolveTarget();
   const client = new pg.Client({ connectionString: target.connectionString });
   await client.connect();
-  console.log(`Connected to ${target.database} (${target.envName})`);
+  console.log(`Connected to ${target.database} on ${target.host} (${target.production ? "PRODUCTION" : target.envName})`);
 
   try {
     await client.query("SELECT pg_advisory_lock($1)", [ADVISORY_LOCK_KEY]);
@@ -84,7 +119,10 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(`Migration error: ${err.message}`);
-  process.exit(1);
-});
+// Run only when this file is started directly, so tests can import resolveTarget without touching a database.
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main().catch((err) => {
+    console.error(`Migration error: ${describeError(err)}`);
+    process.exit(1);
+  });
+}

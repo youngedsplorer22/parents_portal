@@ -2,6 +2,7 @@ import { createApp } from "./app.js";
 import { ConfigError, loadConfig } from "./config.js";
 import { createSender } from "./create-sender.js";
 import { createPool } from "./db/pool.js";
+import { listen } from "./listen.js";
 
 let config;
 try {
@@ -30,9 +31,10 @@ if (sender.verify) {
 const db = createPool(config.databaseUrl);
 const { app, services } = createApp({ db, sender, config });
 
-// Loopback only: the dev server is not reachable from other machines.
-const server = app.listen(config.port, "127.0.0.1", () => {
-  console.log(`Parents Portal backend on http://127.0.0.1:${config.port}`);
+// Development and test listen on this machine only (127.0.0.1) unless HOST says otherwise; production listens on every
+// interface so the hosting platform can reach it (see config.js and listen.js).
+const server = listen(app, config, () => {
+  console.log(config.host ? `Parents Portal backend on http://${config.host.includes(":") ? `[${config.host}]` : config.host}:${config.port}` : `Parents Portal backend listening on all interfaces, port ${config.port}`);
   // Say plainly WHICH database and WHICH delivery mode this process is using (names only, never credentials),
   // so a stray or stale backend can be recognised at a glance.
   const dbUrl = new URL(config.databaseUrl);

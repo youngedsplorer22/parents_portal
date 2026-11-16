@@ -8,8 +8,22 @@ Email OTP verification, registration, login sessions and the tour onboarding for
    Both database URLs must point at `localhost` and at `parents_portal_dev` / `parents_portal_test`.
 2. `npm install`
 3. `npm run migrate` and `npm run migrate -- --test`
-4. `npm run dev` (listens on `127.0.0.1:4000` only)
+4. `npm run dev` (listens on `127.0.0.1:4000` only; `npm run start:local` is the same without file watching)
 5. `npm test` (uses `parents_portal_test` only; refuses any other database)
+
+## Production start and migrations
+
+`npm start` is `node src/server.js`: it reads the real environment and never a `.env` file (a hosting platform sets the
+variables). It listens on `PORT` and, in production, on every interface; `HOST` overrides that.
+
+In production the database rules are strict:
+- another host is accepted only with `NODE_ENV=production` and `ALLOW_PRODUCTION_DATABASE=true`;
+- never a test database or the development database (`parents_portal_dev`), and never while `TEST_DATABASE_URL` is set;
+- a URL may carry only `sslmode=disable` or `sslmode=verify-full` (see `DEPLOYMENT.md`, "Database TLS"), and `PGSSLMODE` and
+  `NODE_TLS_REJECT_UNAUTHORIZED=0` must not be set.
+
+`npm run migrate:production` needs the same, plus `MIGRATE_CONFIRM_DATABASE` set to the database's name. Local runs of
+`npm run migrate` / `npm test` are unchanged and still refuse any non-local database.
 
 ## Delivering the code
 

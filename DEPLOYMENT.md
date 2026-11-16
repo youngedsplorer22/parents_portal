@@ -2,6 +2,53 @@
 
 Nothing here has been run against a real host; it lists what production still needs.
 
+## Railway foundation (stage 1)
+What the backend now supports, so one Node service can run on Railway (the service that also serves the frontend, and the
+migration step, come in later stages):
+- **Node version:** `.node-version` is `24` and both `package.json` files declare `"node": "^22.22.2 || ^24.15.0"`, the range
+  every tool agrees on (Vite 8, Vitest 5, jsdom 30, ESLint 10, `pg`, Express 5). The test suites were run on Node 24.22.1 only.
+- **Start:** `npm start` (= `node src/server.js`) reads the platform's environment, not a `.env` file. Locally use `npm run dev`
+  or `npm run start:local`, which still load `backend/.env`.
+- **Listening:** the server listens on `PORT` and, with `NODE_ENV=production`, on every interface. Development and test still
+  listen on `127.0.0.1`. `HOST` (an IP address) overrides either.
+- **Production database:** another host is accepted only with `NODE_ENV=production` **and** `ALLOW_PRODUCTION_DATABASE=true`.
+  A database named like a test database (`parents_portal_test`, anything ending `_test`) or the development database
+  `parents_portal_dev`, or `TEST_DATABASE_URL` being set, makes production refuse to start. Connection URLs may carry only
+  `sslmode` (`disable` or `verify-full`), `application_name` and `connect_timeout`, each at most once: the driver lets other
+  options such as `?host=` redirect it, and uses the last of a repeated option.
+- **Migrations:** `npm run migrate:production` (= `node src/db/migrate.js --production`) needs `NODE_ENV=production`,
+  `ALLOW_PRODUCTION_DATABASE=true` and `MIGRATE_CONFIRM_DATABASE` set to the database's name. It keeps one transaction per
+  file, the advisory lock and the checksum check. Take a backup first.
+- **Variables for this stage:** `NODE_ENV`, `PORT` (injected by Railway), `HOST` (optional), `DATABASE_URL`, `ALLOW_PRODUCTION_DATABASE`,
+  `MIGRATE_CONFIRM_DATABASE` (migration step only). Never set `TEST_DATABASE_URL` in production.
+
+### Database TLS (PostgreSQL)
+What was checked, and what has not been:
+- **Railway documents** that traffic between services of one environment, including the database, travels over a private
+  WireGuard-encrypted network (`<service>.railway.internal`), and that the Postgres image has SSL enabled. Its pages do not say
+  which `sslmode` the private connection string needs, and they do not describe the certificate. A third-party Railway template
+  uses `sslmode=disable` on the private host; that is not Railway documentation.
+- **The driver (`pg` 8.23)** uses no TLS when the URL has no `sslmode`. For `allow`, `prefer`, `require`, `verify-ca` and
+  `verify-full`, and even for an unknown value, it uses TLS with certificate and host-name checks, but it warns that its next major
+  version gives `require`, `prefer` and `verify-ca` the weaker libpq meaning. `sslmode=no-verify` and `uselibpqcompat=true` turn
+  verification off, and the `PGSSLMODE` environment variable is read when the URL says nothing. That is the source of the
+  "SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca'..." message.
+- **So this project accepts only two settings,** the two that mean the same in every version: no `sslmode` / `sslmode=disable`
+  (no TLS) and `sslmode=verify-full` (TLS that verifies the certificate and host name). Every other `sslmode`, `ssl=`,
+  `uselibpqcompat`, `sslrootcert` and similar options are refused at start-up, so the warning cannot appear and verification can never
+  be switched off by a typo. In production `PGSSLMODE` and `NODE_TLS_REJECT_UNAUTHORIZED=0` must not be set (the server and
+  `migrate:production` refuse to run).
+- **Supported production configuration:** Railway's private `DATABASE_URL` as Railway provides it
+  (`postgresql://…@<service>.railway.internal:5432/<db>`), with no `sslmode` (or an explicit `sslmode=disable`). Any other host that
+  is not on this machine must use `sslmode=verify-full`, because nothing then encrypts the connection but TLS.
+- **Do not use the public proxy URL** (`DATABASE_PUBLIC_URL`) for the app or `migrate:production`. Outside the private network
+  `sslmode=verify-full` is required, and Railway's Postgres certificate is, as far as I know, self-signed (not confirmed in its
+  docs), so verification would fail unless its CA could be trusted. Loading a CA is not supported yet. Use `psql` and `pg_dump`
+  with their own SSL settings for ad-hoc access from a laptop.
+- **Not yet verified, check on the staging environment first:** that the Railway Postgres service accepts the app's non-TLS
+  connection on the private network. If it does not, Postgres answers `no pg_hba.conf entry … no encryption`. Do **not** then
+  switch to `no-verify` or `require`; ask for a change that supports `sslrootcert` with tests instead.
+
 ## Single-page app routing
 The frontend is a single-page app. `/admin/...` and `/join/<token>` are routes inside it, so the web server must
 answer **any non-file, non-`/api` path with `index.html`**, or deep links return 404 on reload. (`vite` dev and
