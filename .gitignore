@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Secrets and local environment files (commit only *.example)
+.env
+.env.*
+!.env.example
+.pgpass
+*.pem
+*.key
+# Credential files Google Cloud Console offers for download
+client_secret*.json
+credentials*.json
+service-account*.json
+
+# Local database files and dumps (migrations in db/migrations/*.sql ARE tracked)
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.backup
+pgdata/
+postgres-data/
+
+# Build output, logs, coverage
+dist/
+build/
+coverage/
+logs/
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Claude Code local files
+.claude/
