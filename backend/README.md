@@ -341,7 +341,7 @@ dropped, so passwords and session tokens can't be recorded.
 ### Known limitations / decisions still open
 - Staff have **no second factor** (not confirmed as a requirement). A staff email-code step would reuse the OTP
   machinery; it has deliberately not been invented.
-- Per-IP limits use the connection address; behind a proxy set Express `trust proxy` correctly (see `DEPLOYMENT.md`).
+- Per-IP limits use the connection address; behind a proxy set `TRUST_PROXY_HOPS` (Railway: 1; see `DEPLOYMENT.md`).
 - Housekeeping runs hourly inside the server: expired parent and staff sessions and old sign-in attempt rows are deleted.
 
 ## Onboarding forms (`/api/onboarding`, login required)

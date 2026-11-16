@@ -23,6 +23,22 @@ const envSchema = z.object({
     z.string().refine((v) => isIP(v) !== 0, "must be an IP address such as 0.0.0.0 or 127.0.0.1").optional(),
   ),
   DATABASE_URL: z.string(required).min(1, "is required"),
+  // How many reverse proxies sit in FRONT of this server and are trusted to append the client's address to
+  // X-Forwarded-For. 0 (default): none, the connection address is the client (right for local development). Railway: 1.
+  // Only the entries those proxies added are trusted; anything a client put further left is ignored.
+  TRUST_PROXY_HOPS: int(0, 0, 5),
+  // Database pool. Timeouts are in milliseconds. 0 turns a timeout off and is refused for the ones that protect the pool.
+  DB_POOL_MAX: int(10, 1, 50),
+  DB_CONNECTION_TIMEOUT_MS: int(5000, 500, 60000),
+  DB_IDLE_TIMEOUT_MS: int(30000, 1000, 600000),
+  DB_STATEMENT_TIMEOUT_MS: int(15000, 500, 120000),
+  DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: int(30000, 1000, 300000),
+  // After SIGTERM: how long in-flight requests get to finish before connections are closed.
+  SHUTDOWN_GRACE_MS: int(10000, 1000, 120000),
+  // Serve the built frontend (frontend/dist) from this server. Default: on in production, off elsewhere (development uses
+  // the Vite dev server and its /api proxy). FRONTEND_DIST overrides the folder.
+  SERVE_FRONTEND: z.enum(["true", "false"], { error: 'must be "true" or "false"' }).optional(),
+  FRONTEND_DIST: z.preprocess((v) => (v === "" ? undefined : v), z.string().max(500).refine(noControlChars, "must not contain control characters").optional()),
   OTP_HMAC_SECRET: z.string(required).regex(/^[0-9a-fA-F]{64,}$/, "must be at least 64 hex characters (openssl rand -hex 32)"),
   // No default on purpose: the delivery method must be chosen explicitly, so a
   // missing or mistyped value can never silently become console mode.
@@ -193,6 +209,17 @@ export function loadConfig(env = process.env) {
     // null = listen on every interface (production default); an address = listen only there (development: loopback).
     host: e.HOST ?? (e.NODE_ENV === "production" ? null : "127.0.0.1"),
     databaseUrl: e.DATABASE_URL,
+    trustProxyHops: e.TRUST_PROXY_HOPS,
+    db: {
+      max: e.DB_POOL_MAX,
+      connectionTimeoutMs: e.DB_CONNECTION_TIMEOUT_MS,
+      idleTimeoutMs: e.DB_IDLE_TIMEOUT_MS,
+      statementTimeoutMs: e.DB_STATEMENT_TIMEOUT_MS,
+      idleInTransactionTimeoutMs: e.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS,
+    },
+    shutdownGraceMs: e.SHUTDOWN_GRACE_MS,
+    serveFrontend: (e.SERVE_FRONTEND ?? (e.NODE_ENV === "production" ? "true" : "false")) === "true",
+    frontendDist: e.FRONTEND_DIST ?? null,
     delivery: e.OTP_DELIVERY,
     smtp,
     otp: {

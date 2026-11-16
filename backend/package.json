@@ -15,6 +15,7 @@
     "migrate:production": "node src/db/migrate.js --production",
     "test": "node --env-file=.env --test --test-concurrency=1 \"test/**/*.test.js\"",
     "staff": "node --env-file=.env scripts/staff.js",
+    "bootstrap:admin": "node scripts/bootstrap-admin.js",
     "mail:check": "node --env-file=.env scripts/smtp-check.js",
     "catalog:cleanup": "node --env-file=.env scripts/catalog-cleanup.js",
     "drive:authorize": "node --env-file=.env scripts/drive-authorize.js",

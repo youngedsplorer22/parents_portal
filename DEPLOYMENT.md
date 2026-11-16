@@ -1,6 +1,6 @@
 # Deployment notes (Parents Portal)
 
-Nothing here has been run against a real host; it lists what production still needs.
+Nothing here has been run against a real host; it lists what production still needs. Stage 2 (below) was verified locally only; every point marked **STAGING** needs a check on a real Railway environment before production.
 
 ## Railway foundation (stage 1)
 What the backend now supports, so one Node service can run on Railway (the service that also serves the frontend, and the
@@ -50,30 +50,18 @@ What was checked, and what has not been:
   switch to `no-verify` or `require`; ask for a change that supports `sslrootcert` with tests instead.
 
 ## Single-page app routing
-The frontend is a single-page app. `/admin/...` and `/join/<token>` are routes inside it, so the web server must
-answer **any non-file, non-`/api` path with `index.html`**, or deep links return 404 on reload. (`vite` dev and
-`vite preview` already do this.)
+Express serves the built frontend itself (`backend/src/frontend.js`), so no separate web server is needed on Railway.
+- Turned on by `SERVE_FRONTEND` (default: **on in production, off in development**); `FRONTEND_DIST` overrides the folder
+  (default `frontend/dist`). In production the server refuses to start if `index.html` is missing.
+- `/api/*` is always the API: an unknown API path is the JSON 404, never HTML (also `/API/...`).
+- Real files are sent as files. `/assets/*` (content-hashed by Vite) is `immutable` for a year; `index.html` is `no-cache`;
+  other public files cache for an hour. A missing asset is a 404, never the app shell.
+- A GET/HEAD *navigation* (the browser asks for `text/html`) to any other path gets `index.html`, so `/admin/...` and
+  `/join/<token>` deep links reload. Dotfiles and path traversal are refused.
+- Development is unchanged: `npm run dev` in `frontend/` (Vite proxy `/api` -> `127.0.0.1:4000`, `changeOrigin: false`).
 
-Example (nginx), serving `frontend/dist` and proxying the API on the same origin:
-
-    server {
-      listen 443 ssl http2;
-      server_name parents.example.com;
-      root /var/www/parents-portal;           # contents of frontend/dist
-      add_header Referrer-Policy "no-referrer" always;   # /join/<token> URLs contain the link token
-
-      location /api/ {
-        proxy_pass http://127.0.0.1:4000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header X-Forwarded-Proto $scheme;
-      }
-      location / {
-        try_files $uri $uri/ /index.html;
-      }
-    }
-
-Static hosts: Netlify `_redirects` `/*  /index.html  200`; Vercel `rewrites` to `/index.html`.
+If you ever put a different web server in front instead (nginx etc.), it must answer any non-file, non-`/api` path with
+`index.html` and pass the browser's `Host` through unchanged.
 
 ## Same origin, and keep the Host header
 The browser app and the API must share one origin (as the dev proxy does). Cookies are `SameSite=Strict` and no CORS is enabled.
@@ -85,11 +73,47 @@ So any proxy in front of the backend must pass the browser's Host through unchan
   would turn it on and cause "This request was blocked" on staff login).
 
 ## HTTPS and proxy
-- Serve everything over HTTPS; set `NODE_ENV=production` so cookies are `Secure`.
-- Per-IP limits (OTP sends, password sign-in, public link lookups) use the connection address. Behind a proxy the backend
-  sees the proxy's address until Express `trust proxy` is configured for it. **This is not configured yet** and must be set for
-  the deployment (only trust your own proxy).
+- Serve everything over HTTPS; `NODE_ENV=production` makes cookies `Secure`. Railway terminates TLS.
+- **`TRUST_PROXY_HOPS`** is the number of proxies in front of the server (Railway: `1`; local: `0`, the default). Express then
+  reads the client address from `X-Forwarded-For` counting that many entries **from the right** (the ones the trusted proxy
+  added); anything a caller wrote further left is ignored. `X-Real-IP`, `Forwarded` and `X-Forwarded-Host` are never used
+  (the same-site check compares `Origin` with the real `Host` header). If the forwarded value is not an IP address, the
+  connection address is used instead. All per-IP limits (OTP sends, password sign-in, refresh, public link lookups, mobile)
+  read this one address. Production logs a warning when it is `0`.
+  **STAGING:** confirm that Railway's edge *appends* the real client address to `X-Forwarded-For` (so `1` is right) by
+  calling `/api/auth/login/password` with a forged `X-Forwarded-For: 1.2.3.4` and checking the limit follows your real address.
+  Too high a value lets callers pick their own address; too low makes everyone share the proxy's address.
 - Set `PUBLIC_BASE_URL` (origin only) so staff are given complete parent links.
+
+## Database pool, health checks and shutdown (stage 2)
+- Pool: `DB_POOL_MAX` 10, `DB_CONNECTION_TIMEOUT_MS` 5000 (waiting for a connection fails fast), `DB_IDLE_TIMEOUT_MS` 30000,
+  `DB_STATEMENT_TIMEOUT_MS` 15000 (PostgreSQL cancels a longer statement, error 57014), `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`
+  30000. Mind the total: replicas x `DB_POOL_MAX` must stay below the database's `max_connections`.
+- `GET /api/health` and `/api/health/live`: liveness, the process answers; never touches the database. `GET /api/health/ready`:
+  readiness, `SELECT 1` within 2 s and not shutting down; otherwise `503`. Bodies are only `{"status":"ok"}` or
+  `{"status":"unavailable"}`. Readiness shares one query between concurrent callers and caches for 1 s.
+  `railway.json` uses **readiness** as the deploy health check.
+- Shutdown (`SIGTERM`/`SIGINT`): readiness turns 503, new connections stop, in-flight requests get `SHUTDOWN_GRACE_MS` (10 s),
+  stragglers are dropped, the pool closes, exit code 0 (1 if anything was forced). **STAGING:** check Railway's own stop
+  timeout (default is longer than 10 s) and that a redeploy under load drops no requests.
+
+## Root build and start (stage 2)
+- `railway.json` + root `package.json`: build = `npm run build` (installs `backend/` and `frontend/` with `npm ci`, builds
+  `frontend/dist`); start = `npm start` (= `npm start --prefix backend`, the platform's environment, no `.env` file).
+- Locally nothing changes: `npm run dev` in `backend/` and `frontend/`; or `npm run dev:backend` / `npm run dev:frontend` from the root.
+- **Migrations are not run by start or build.** Run `npm run migrate:production` (see stage 1) yourself, once per release, with a backup.
+
+## First admin (production, one time)
+There is no HTTP endpoint for this. In a shell attached to the running service (Railway: `railway ssh`):
+1. Set `BOOTSTRAP_ADMIN_ENABLED=true` on the service (the deliberate "open the window" switch) and redeploy/restart so the shell sees it.
+2. `npm run bootstrap:admin --prefix backend`. Enter the email and name, then type the exact confirmation it prints.
+3. Remove `BOOTSTRAP_ADMIN_ENABLED`.
+4. The new admin opens `/admin/login` -> "First time or forgot your password?" and sets a password with a code emailed to them
+   (SMTP must be working). No password is typed, stored or printed by the command.
+It refuses unless `NODE_ENV=production`, the switch is set, the database passes the production checks, and **no staff account
+exists at all**; so it cannot run twice, and it creates exactly one admin even if started concurrently. Success and every
+refusal are written to `audit_log` (`staff.bootstrap_admin`, `staff.bootstrap_refused`). **STAGING:** confirm `railway ssh`
+reaches the service's private network database and that the terminal prompts work there.
 
 ## Sign-in sessions (migration 017)
 Access + refresh tokens are described in `AUTH_SESSIONS.md`. When deploying this change:
@@ -128,6 +152,30 @@ Measured on the development laptop (2 physical cores, running at 41% CPU speed):
 - The registration PDF uses Noto Sans for Latin, Greek, Cyrillic, Vietnamese, Devanagari (Hindi) and Bengali. Names in
   other scripts (Chinese, Japanese, Korean, Arabic) would show as empty boxes until a font for them is added.
 
+## OTP email (existing SMTP) on Railway
+Production sends real email only: `OTP_DELIVERY=dev-console` is refused outside development, and `OTP_DELIVERY=smtp` with an
+incomplete `SMTP_*` set stops the server at start (it never falls back to the console). The server also verifies the SMTP
+connection at start, so a wrong host, port or login fails the deploy instead of the first registration.
+- Outbound SMTP is blocked on Railway's Free, Trial and Hobby plans; the **Pro** plan allows it. Use the provider's submission
+  port: `587` with `SMTP_SECURE=false` (STARTTLS) or `465` with `SMTP_SECURE=true`.
+- Set these in the service's **Variables** tab (never in a file, the repository or `railway.json`): `OTP_DELIVERY=smtp`,
+  `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` (an app password where the provider offers one),
+  `SMTP_FROM`. Codes and credentials are never logged; the start-up log names only the SMTP host.
+- Before the first real registration, check SPF and DKIM for the `SMTP_FROM` domain so codes do not land in spam.
+- `npm run mail:check` connects and logs in to the mail server and sends nothing, but it reads `backend/.env`, which does not
+  exist on Railway. The start-up verification above is the production check; read the deploy log for
+  "SMTP connection to ... verified."
+
+## Railway service checklist
+Build and start come from `railway.json` (`npm run build`, `npm start`); health check `/api/health/ready`.
+Variables: `NODE_ENV=production`, `DATABASE_URL` (reference the Postgres service's private URL), `ALLOW_PRODUCTION_DATABASE=true`,
+`TRUST_PROXY_HOPS=1`, the `OTP_DELIVERY`/`SMTP_*` set above, plus the auth, staff and Google Drive variables already listed in
+`backend/.env.example` and `GOOGLE_DRIVE_SETUP.md`. `PORT` is injected by Railway.
+Order for the first deploy: deploy (the readiness check passes on an empty database) -> back up -> run
+`npm run migrate:production --prefix backend` once from `railway ssh` with `MIGRATE_CONFIRM_DATABASE` set to the database name
+-> bootstrap the first admin (see *First admin*) -> remove `BOOTSTRAP_ADMIN_ENABLED` and `MIGRATE_CONFIRM_DATABASE`.
+Password hashing uses about 128 MiB per concurrent hash; check the service's memory limit against `PASSWORD_HASH_CONCURRENCY`.
+
 ## Still required
 Production domain and TLS, mail sender domain (SPF/DKIM) for OTP emails, a scheduled call to the `purgeExpired` housekeeping,
-database backups, and the first admin created with `npm run staff -- create admin`.
+database backups, and the first admin (see *First admin*).

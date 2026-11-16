@@ -353,3 +353,23 @@ describe("the production database: development database and TLS", () => {
     assert.throws(() => loadConfig(railway({ NODE_TLS_REJECT_UNAUTHORIZED: "0" })), /NODE_TLS_REJECT_UNAUTHORIZED/);
   });
 });
+
+describe("Stage 2 settings: proxy, pool, shutdown, frontend", () => {
+  it("defaults: no trusted proxy, safe pool timeouts, frontend served only in production", () => {
+    const c = loadConfig(valid);
+    assert.equal(c.trustProxyHops, 0);
+    assert.deepEqual(c.db, { max: 10, connectionTimeoutMs: 5000, idleTimeoutMs: 30000, statementTimeoutMs: 15000, idleInTransactionTimeoutMs: 30000 });
+    assert.equal(c.shutdownGraceMs, 10000);
+    assert.equal(c.serveFrontend, false);
+    assert.equal(loadConfig({ ...valid, NODE_ENV: "production", DATABASE_URL: PROD_DB, OTP_DELIVERY: "smtp", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587", SMTP_SECURE: "false", SMTP_USER: "u", SMTP_PASSWORD: "p", SMTP_FROM: "a@example.com" }).serveFrontend, true);
+  });
+
+  it("accepts only whole, bounded values (never a boolean or a negative hop count)", () => {
+    assert.equal(loadConfig({ ...valid, TRUST_PROXY_HOPS: "1" }).trustProxyHops, 1);
+    for (const bad of ["-1", "true", "6", "1.5", "abc"]) assert.throws(() => loadConfig({ ...valid, TRUST_PROXY_HOPS: bad }), ConfigError, bad);
+    for (const key of ["DB_POOL_MAX", "DB_CONNECTION_TIMEOUT_MS", "DB_IDLE_TIMEOUT_MS", "DB_STATEMENT_TIMEOUT_MS", "SHUTDOWN_GRACE_MS"]) {
+      for (const bad of ["0", "-5", "x"]) assert.throws(() => loadConfig({ ...valid, [key]: bad }), ConfigError, `${key}=${bad}`);
+    }
+    assert.throws(() => loadConfig({ ...valid, SERVE_FRONTEND: "yes" }), ConfigError);
+  });
+});
