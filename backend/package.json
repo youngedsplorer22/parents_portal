@@ -5,14 +5,17 @@
   "description": "Parents Portal backend: email OTP verification for registration",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": "^22.22.2 || ^24.15.0"
   },
   "scripts": {
-    "start": "node --env-file=.env src/server.js",
+    "start": "node src/server.js",
+    "start:local": "node --env-file=.env src/server.js",
     "dev": "node --watch --env-file=.env src/server.js",
     "migrate": "node --env-file=.env src/db/migrate.js",
+    "migrate:production": "node src/db/migrate.js --production",
     "test": "node --env-file=.env --test --test-concurrency=1 \"test/**/*.test.js\"",
     "staff": "node --env-file=.env scripts/staff.js",
+    "bootstrap:admin": "node scripts/bootstrap-admin.js",
     "mail:check": "node --env-file=.env scripts/smtp-check.js",
     "catalog:cleanup": "node --env-file=.env scripts/catalog-cleanup.js",
     "drive:authorize": "node --env-file=.env scripts/drive-authorize.js",

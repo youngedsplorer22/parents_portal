@@ -1,5 +1,8 @@
+import { isIP } from "node:net";
 import express from "express";
 import helmet from "helmet";
+import { createFrontend } from "./frontend.js";
+import { createHealth } from "./health.js";
 import { createErrorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { createAuthModule, requireSession } from "./modules/auth/index.js";
 import { createWorkGate, defaultGateOptions } from "./modules/auth/work-gate.js";
@@ -14,10 +17,26 @@ import { createRegistrationsModule } from "./modules/registrations/index.js";
 import { createStaffModule, requireRole, sameOriginForWrites } from "./modules/staff/index.js";
 
 /** Builds the Express app. Everything environment-specific is passed in. */
-export function createApp({ db, sender, config, clock, generateCode, logger, renderPdf, driveEndpoints, pdfLimits }) {
+export function createApp({ db, sender, config, clock, generateCode, logger, renderPdf, driveEndpoints, pdfLimits, frontendDist, healthTimeoutMs, healthCacheMs }) {
   const app = express();
   app.disable("x-powered-by");
-  app.use(helmet());
+  // How many reverse proxies in front of this server are trusted (0 = none). Express then takes the client address from
+  // X-Forwarded-For counting that many entries from the RIGHT (the ones the trusted proxies added), so anything a caller
+  // wrote further left is ignored. Every per-IP limit reads req.ip. X-Real-IP, Forwarded and X-Forwarded-Host are never used.
+  app.set("trust proxy", config.trustProxyHops ?? 0);
+  // If the forwarded value is not an IP address (garbage in X-Forwarded-For), the limiters would find "no address" and skip
+  // their check. Fall back to the connection's own address so a bad header can only ever cost the caller, never help them.
+  app.use((req, res, next) => {
+    if (!isIP(req.ip ?? "") && req.socket?.remoteAddress) Object.defineProperty(req, "ip", { value: req.socket.remoteAddress, configurable: true });
+    next();
+  });
+  // helmet's defaults, except images may come from any https host: the live map draws tiles from a tile server
+  // (OpenStreetMap by default, or VITE_MAP_TILE_URL).
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: { "img-src": ["'self'", "data:", "https:"] },
+    },
+  }));
 
   const emailOtp = createEmailOtpModule({ db, sender, config: config.otp, clock, generateCode });
 
@@ -59,7 +78,9 @@ export function createApp({ db, sender, config, clock, generateCode, logger, ren
   // request that carries an Origin header must come from this same host. Non-browser clients send no Origin and pass.
   app.use("/api", sameOriginForWrites);
 
-  app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+  // /api/health and /api/health/live: the process answers. /api/health/ready: the database answers and we are not shutting down.
+  const health = createHealth({ db, timeoutMs: healthTimeoutMs, cacheMs: healthCacheMs });
+  app.use("/api/health", health.router);
   app.use(emailOtp.mountPath, emailOtp.router);
   app.use(registrations.mountPath, registrations.router);
   app.use(auth.mountPath, auth.router);
@@ -71,8 +92,10 @@ export function createApp({ db, sender, config, clock, generateCode, logger, ren
   app.use("/api/join", catalog.joinRouter);
   app.use("/api/school-logos", catalog.logoRouter);
 
+  // The built frontend (production). It answers only what the API did not, and /api/* stays JSON.
+  if (frontendDist) app.use(createFrontend({ distDir: frontendDist }));
   app.use(notFoundHandler);
   app.use(createErrorHandler({ logger }));
 
-  return { app, services: { staff: staff.service, catalog: catalog.service, emailOtp: emailOtp.service, registrations: registrations.service, auth: auth.service, onboarding: onboarding.service, enrolments: enrolments.service, liveLocation: liveLocation.service, passwordGate } };
+  return { app, lifecycle: { beginShutdown: health.beginShutdown }, health, services: { staff: staff.service, catalog: catalog.service, emailOtp: emailOtp.service, registrations: registrations.service, auth: auth.service, onboarding: onboarding.service, enrolments: enrolments.service, liveLocation: liveLocation.service, passwordGate } };
 }

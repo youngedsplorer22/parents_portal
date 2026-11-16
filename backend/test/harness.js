@@ -8,7 +8,7 @@ const SEC = 1000;
 export const STAFF_PASSWORD = "staff-passphrase-123";
 
 /** The real app on a random local port, with a capturing sender and a controllable OTP clock. */
-export async function startApp({ db, auth = {}, staff = {}, passwordHashing, renderPdf, pdfRendering, drive, pdfStorage, liveLocation, mobile }) {
+export async function startApp({ db, auth = {}, staff = {}, passwordHashing, renderPdf, pdfRendering, drive, pdfStorage, liveLocation, mobile, trustProxyHops }) {
   const clock = fakeClock();
   const sender = captureSender();
   const logged = [];
@@ -17,6 +17,7 @@ export async function startApp({ db, auth = {}, staff = {}, passwordHashing, ren
     sender,
     // `drive` is a fake Google Drive (test/fake-drive.js): the app then stores PDFs in it, over real HTTP to it.
     config: {
+      trustProxyHops,
       otp: testOtpConfig(), auth: testAuthConfig(auth), staff: testStaffConfig(staff), passwordHashing, pdfRendering, liveLocation, mobile,
       pdfStorage: pdfStorage ?? (drive ? { mode: "google-drive", drive: { clientId: drive.options.clientId, clientSecret: drive.options.clientSecret, refreshToken: drive.options.refreshToken, account: drive.options.account }, missing: [], rootName: "Young Edsplorer" } : undefined),
     },

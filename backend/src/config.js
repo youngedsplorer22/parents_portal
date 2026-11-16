@@ -1,7 +1,7 @@
+import { isIP } from "node:net";
 import { z } from "zod";
+import { DatabaseTargetError, assertLocalDatabaseUrl as assertLocalTarget, resolveDatabaseTarget } from "./db/target.js";
 import { defaultGateOptions } from "./modules/auth/work-gate.js";
-
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 const int = (fallback, min, max) => z.coerce.number().int().min(min).max(max).default(fallback);
 const required = { error: "is required" };
@@ -16,7 +16,29 @@ const optionalInt = (min, max) =>
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: int(4000, 1, 65535),
+  // Optional. The address to listen on (an IP address). Unset: development and test listen on this machine only
+  // (127.0.0.1); production listens on every interface, which is what a hosting platform needs to reach it.
+  HOST: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().refine((v) => isIP(v) !== 0, "must be an IP address such as 0.0.0.0 or 127.0.0.1").optional(),
+  ),
   DATABASE_URL: z.string(required).min(1, "is required"),
+  // How many reverse proxies sit in FRONT of this server and are trusted to append the client's address to
+  // X-Forwarded-For. 0 (default): none, the connection address is the client (right for local development). Railway: 1.
+  // Only the entries those proxies added are trusted; anything a client put further left is ignored.
+  TRUST_PROXY_HOPS: int(0, 0, 5),
+  // Database pool. Timeouts are in milliseconds. 0 turns a timeout off and is refused for the ones that protect the pool.
+  DB_POOL_MAX: int(10, 1, 50),
+  DB_CONNECTION_TIMEOUT_MS: int(5000, 500, 60000),
+  DB_IDLE_TIMEOUT_MS: int(30000, 1000, 600000),
+  DB_STATEMENT_TIMEOUT_MS: int(15000, 500, 120000),
+  DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: int(30000, 1000, 300000),
+  // After SIGTERM: how long in-flight requests get to finish before connections are closed.
+  SHUTDOWN_GRACE_MS: int(10000, 1000, 120000),
+  // Serve the built frontend (frontend/dist) from this server. Default: on in production, off elsewhere (development uses
+  // the Vite dev server and its /api proxy). FRONTEND_DIST overrides the folder.
+  SERVE_FRONTEND: z.enum(["true", "false"], { error: 'must be "true" or "false"' }).optional(),
+  FRONTEND_DIST: z.preprocess((v) => (v === "" ? undefined : v), z.string().max(500).refine(noControlChars, "must not contain control characters").optional()),
   OTP_HMAC_SECRET: z.string(required).regex(/^[0-9a-fA-F]{64,}$/, "must be at least 64 hex characters (openssl rand -hex 32)"),
   // No default on purpose: the delivery method must be chosen explicitly, so a
   // missing or mistyped value can never silently become console mode.
@@ -82,6 +104,11 @@ const envSchema = z.object({
     .default("Young Edsplorer"),
   PASSWORD_HASH_CONCURRENCY: optionalInt(1, 64),
   PASSWORD_HASH_QUEUE: optionalInt(0, 10000),
+  // Production only: a database on another host (Railway's PostgreSQL) is used ONLY when this is exactly "true"
+  // (see db/target.js). The value itself is checked there, so a typo is refused, not ignored.
+  ALLOW_PRODUCTION_DATABASE: z.string().optional(),
+  // Must stay unset in production (the server refuses to start otherwise): it is the local test database setting.
+  TEST_DATABASE_URL: z.string().optional(),
 });
 
 
@@ -103,16 +130,15 @@ const smtpSchema = z.object({
 
 export class ConfigError extends Error {}
 
-/** Refuses any database that is not on this machine (e.g. a shared or ERP server). */
+/**
+ * Refuses any database that is not on this machine (e.g. a shared or ERP server). For the local tools; the server itself
+ * uses resolveDatabaseTarget, which also allows an explicitly approved production database.
+ */
 export function assertLocalDatabaseUrl(connectionString, label = "DATABASE_URL") {
-  let url;
   try {
-    url = new URL(connectionString);
-  } catch {
-    throw new ConfigError(`${label} is not a valid connection URL`);
-  }
-  if (!LOCAL_HOSTS.has(url.hostname)) {
-    throw new ConfigError(`${label} must point at localhost or 127.0.0.1 (got "${url.hostname}")`);
+    assertLocalTarget(connectionString, label);
+  } catch (err) {
+    throw err instanceof DatabaseTargetError ? new ConfigError(err.message) : err;
   }
 }
 
@@ -126,7 +152,12 @@ export function loadConfig(env = process.env) {
   }
   const e = parsed.data;
 
-  assertLocalDatabaseUrl(e.DATABASE_URL);
+  // Which database this process may use (a local one; or, in production only and on purpose, another host's).
+  try {
+    resolveDatabaseTarget({ ...env, NODE_ENV: e.NODE_ENV });
+  } catch (err) {
+    throw err instanceof DatabaseTargetError ? new ConfigError(err.message) : err;
+  }
   // Explicit values must nest; a value left unset takes its default, capped to fit (so setting only the absolute
   // limit, as before this change, keeps working).
   const lifetimes = (who, accessSet, idleSet, absolute, defaults) => {
@@ -175,7 +206,20 @@ export function loadConfig(env = process.env) {
   return {
     nodeEnv: e.NODE_ENV,
     port: e.PORT,
+    // null = listen on every interface (production default); an address = listen only there (development: loopback).
+    host: e.HOST ?? (e.NODE_ENV === "production" ? null : "127.0.0.1"),
     databaseUrl: e.DATABASE_URL,
+    trustProxyHops: e.TRUST_PROXY_HOPS,
+    db: {
+      max: e.DB_POOL_MAX,
+      connectionTimeoutMs: e.DB_CONNECTION_TIMEOUT_MS,
+      idleTimeoutMs: e.DB_IDLE_TIMEOUT_MS,
+      statementTimeoutMs: e.DB_STATEMENT_TIMEOUT_MS,
+      idleInTransactionTimeoutMs: e.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS,
+    },
+    shutdownGraceMs: e.SHUTDOWN_GRACE_MS,
+    serveFrontend: (e.SERVE_FRONTEND ?? (e.NODE_ENV === "production" ? "true" : "false")) === "true",
+    frontendDist: e.FRONTEND_DIST ?? null,
     delivery: e.OTP_DELIVERY,
     smtp,
     otp: {

@@ -9,6 +9,8 @@ const valid = {
   OTP_HMAC_SECRET: "a".repeat(64),
   OTP_DELIVERY: "dev-console",
 };
+// Production may no longer use the development database, so the tests that load a production configuration use this one.
+const PROD_DB = "postgresql://parents_portal_app:pw@localhost:5432/portal_prod";
 
 describe("loadConfig", () => {
   it("applies the agreed defaults", () => {
@@ -139,7 +141,7 @@ describe("loadConfig", () => {
   });
 
   it("marks staff cookies Secure in production", () => {
-    const prod = { ...valid, NODE_ENV: "production", OTP_DELIVERY: "smtp", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587", SMTP_SECURE: "false", SMTP_USER: "u", SMTP_PASSWORD: "p", SMTP_FROM: "a@example.com" };
+    const prod = { ...valid, DATABASE_URL: PROD_DB, NODE_ENV: "production", OTP_DELIVERY: "smtp", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587", SMTP_SECURE: "false", SMTP_USER: "u", SMTP_PASSWORD: "p", SMTP_FROM: "a@example.com" };
     assert.equal(loadConfig(prod).staff.cookieSecure, true);
   });
 
@@ -154,7 +156,7 @@ describe("loadConfig", () => {
 
   it("refuses the dev-console sender outside development", () => {
     for (const NODE_ENV of ["production", "test"]) {
-      assert.throws(() => loadConfig({ ...valid, NODE_ENV }), /only allowed when NODE_ENV=development/);
+      assert.throws(() => loadConfig({ ...valid, DATABASE_URL: PROD_DB, NODE_ENV }), /only allowed when NODE_ENV=development/);
     }
   });
 
@@ -206,7 +208,7 @@ describe("loadConfig: SMTP delivery", () => {
   });
 
   it("parses SMTP_SECURE=true and allows production (SMTP is the production path)", () => {
-    const c = loadConfig({ ...smtp, NODE_ENV: "production", SMTP_SECURE: "true", SMTP_PORT: "465" });
+    const c = loadConfig({ ...smtp, DATABASE_URL: PROD_DB, NODE_ENV: "production", SMTP_SECURE: "true", SMTP_PORT: "465" });
     assert.equal(c.smtp.secure, true);
     assert.equal(c.smtp.port, 465);
   });
@@ -254,5 +256,120 @@ describe("loadConfig: SMTP delivery", () => {
 
   it("allows dev-console when the SMTP_* variables are blank", () => {
     loadConfig({ ...valid, SMTP_HOST: "", SMTP_PASSWORD: "" });
+  });
+});
+
+// Railway: where the server listens, and which database a production process may use.
+const SMTP = { OTP_DELIVERY: "smtp", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587", SMTP_SECURE: "false", SMTP_USER: "u", SMTP_PASSWORD: "p", SMTP_FROM: "a@example.com" };
+const railway = (over = {}) => ({
+  ...valid,
+  ...SMTP,
+  NODE_ENV: "production",
+  DATABASE_URL: "postgresql://postgres:db-pw-value@postgres.railway.internal:5432/railway",
+  ALLOW_PRODUCTION_DATABASE: "true",
+  ...over,
+});
+
+describe("where the server listens", () => {
+  it("development and test listen on this machine only, as before", () => {
+    assert.equal(loadConfig(valid).host, "127.0.0.1");
+    assert.equal(loadConfig({ ...valid, ...SMTP, NODE_ENV: "test" }).host, "127.0.0.1");
+  });
+
+  it("production listens on every interface (no host, so Node binds all of them)", () => {
+    assert.equal(loadConfig(railway()).host, null);
+  });
+
+  it("HOST overrides either default, but only with an IP address", () => {
+    assert.equal(loadConfig({ ...valid, HOST: "0.0.0.0" }).host, "0.0.0.0");
+    assert.equal(loadConfig({ ...valid, HOST: "::" }).host, "::");
+    assert.equal(loadConfig(railway({ HOST: "127.0.0.1" })).host, "127.0.0.1");
+    assert.equal(loadConfig({ ...valid, HOST: "" }).host, "127.0.0.1", "an empty value counts as not set");
+    for (const bad of ["localhost", "example.com", "0.0.0.0/0", "999.1.1.1", "127.0.0.1:4000", " 0.0.0.0"]) {
+      assert.throws(() => loadConfig({ ...valid, HOST: bad }), ConfigError, bad);
+    }
+  });
+
+  it("reads the port Railway injects", () => {
+    assert.equal(loadConfig(railway({ PORT: "8080" })).port, 8080);
+    assert.throws(() => loadConfig(railway({ PORT: "0" })), ConfigError);
+    assert.throws(() => loadConfig(railway({ PORT: "70000" })), ConfigError);
+  });
+});
+
+describe("the production database", () => {
+  it("is accepted on another host only with NODE_ENV=production and the explicit opt-in", () => {
+    const c = loadConfig(railway());
+    assert.equal(c.databaseUrl, railway().DATABASE_URL);
+    assert.equal(c.nodeEnv, "production");
+    assert.throws(() => loadConfig(railway({ ALLOW_PRODUCTION_DATABASE: undefined })), /ALLOW_PRODUCTION_DATABASE=true/);
+    assert.throws(() => loadConfig(railway({ ALLOW_PRODUCTION_DATABASE: "1" })), /must be exactly "true"/);
+  });
+
+  it("is never accepted on another host outside production, whatever else is set", () => {
+    for (const NODE_ENV of ["development", "test"]) {
+      assert.throws(() => loadConfig({ ...valid, NODE_ENV, DATABASE_URL: railway().DATABASE_URL, ALLOW_PRODUCTION_DATABASE: "true" }), /must point at localhost or 127.0.0.1/, NODE_ENV);
+    }
+    const { NODE_ENV, ...unset } = railway();
+    assert.throws(() => loadConfig({ ...unset, OTP_DELIVERY: "dev-console" }), ConfigError, "no NODE_ENV means development");
+  });
+
+  it("never runs production on a test database or next to the test database setting", () => {
+    assert.throws(() => loadConfig(railway({ TEST_DATABASE_URL: "postgresql://u:pw@localhost:5432/parents_portal_test" })), /TEST_DATABASE_URL must not be set in production/);
+    assert.throws(() => loadConfig(railway({ DATABASE_URL: "postgresql://u:pw@postgres.railway.internal:5432/parents_portal_test" })), /test database/);
+  });
+
+  it("refuses the ?host= trick that fools a plain host check", () => {
+    assert.throws(() => loadConfig({ ...valid, DATABASE_URL: "postgresql://u:pw@localhost:5432/parents_portal_dev?host=erp.internal.example" }), ConfigError);
+  });
+
+  it("still needs everything else: a missing secret, a missing URL, or the console sender", () => {
+    assert.throws(() => loadConfig(railway({ OTP_HMAC_SECRET: undefined })), ConfigError);
+    assert.throws(() => loadConfig(railway({ DATABASE_URL: undefined })), ConfigError);
+    assert.throws(() => loadConfig(railway({ OTP_DELIVERY: "dev-console" })), /only allowed when NODE_ENV=development/);
+  });
+
+  it("never echoes the database password in an error", () => {
+    for (const over of [{ ALLOW_PRODUCTION_DATABASE: undefined }, { TEST_DATABASE_URL: "x" }, { DATABASE_URL: "mysql://postgres:db-pw-value@h/railway" }, { DATABASE_URL: "postgresql://postgres:db-pw-value@h/railway?host=x" }]) {
+      assert.throws(() => loadConfig(railway(over)), (err) => err instanceof ConfigError && !err.message.includes("db-pw-value"), JSON.stringify(Object.keys(over)));
+    }
+  });
+});
+
+describe("the production database: development database and TLS", () => {
+  it("never runs production on the development database, on any host", () => {
+    for (const host of ["postgres.railway.internal", "localhost"]) {
+      assert.throws(() => loadConfig(railway({ DATABASE_URL: `postgresql://u:db-pw-value@${host}:5432/parents_portal_dev` })), (err) => err instanceof ConfigError && /development database/.test(err.message) && !err.message.includes("db-pw-value"), host);
+    }
+    loadConfig({ ...valid }); // development still uses it
+  });
+
+  it("applies the TLS rules: verify-full or Railway's private host, no weakening settings", () => {
+    const url = (host, q = "") => `postgresql://u:db-pw-value@${host}:5432/railway${q}`;
+    assert.throws(() => loadConfig(railway({ DATABASE_URL: url("db.internal.example") })), /sslmode=verify-full/);
+    loadConfig(railway({ DATABASE_URL: url("db.internal.example", "?sslmode=verify-full") }));
+    assert.throws(() => loadConfig(railway({ DATABASE_URL: url("postgres.railway.internal", "?sslmode=require") })), /sslmode/);
+    assert.throws(() => loadConfig(railway({ PGSSLMODE: "no-verify" })), /PGSSLMODE/);
+    assert.throws(() => loadConfig(railway({ NODE_TLS_REJECT_UNAUTHORIZED: "0" })), /NODE_TLS_REJECT_UNAUTHORIZED/);
+  });
+});
+
+describe("Stage 2 settings: proxy, pool, shutdown, frontend", () => {
+  it("defaults: no trusted proxy, safe pool timeouts, frontend served only in production", () => {
+    const c = loadConfig(valid);
+    assert.equal(c.trustProxyHops, 0);
+    assert.deepEqual(c.db, { max: 10, connectionTimeoutMs: 5000, idleTimeoutMs: 30000, statementTimeoutMs: 15000, idleInTransactionTimeoutMs: 30000 });
+    assert.equal(c.shutdownGraceMs, 10000);
+    assert.equal(c.serveFrontend, false);
+    assert.equal(loadConfig({ ...valid, NODE_ENV: "production", DATABASE_URL: PROD_DB, OTP_DELIVERY: "smtp", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587", SMTP_SECURE: "false", SMTP_USER: "u", SMTP_PASSWORD: "p", SMTP_FROM: "a@example.com" }).serveFrontend, true);
+  });
+
+  it("accepts only whole, bounded values (never a boolean or a negative hop count)", () => {
+    assert.equal(loadConfig({ ...valid, TRUST_PROXY_HOPS: "1" }).trustProxyHops, 1);
+    for (const bad of ["-1", "true", "6", "1.5", "abc"]) assert.throws(() => loadConfig({ ...valid, TRUST_PROXY_HOPS: bad }), ConfigError, bad);
+    for (const key of ["DB_POOL_MAX", "DB_CONNECTION_TIMEOUT_MS", "DB_IDLE_TIMEOUT_MS", "DB_STATEMENT_TIMEOUT_MS", "SHUTDOWN_GRACE_MS"]) {
+      for (const bad of ["0", "-5", "x"]) assert.throws(() => loadConfig({ ...valid, [key]: bad }), ConfigError, `${key}=${bad}`);
+    }
+    assert.throws(() => loadConfig({ ...valid, SERVE_FRONTEND: "yes" }), ConfigError);
   });
 });

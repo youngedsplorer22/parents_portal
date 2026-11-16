@@ -1,7 +1,12 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createApp } from "./app.js";
 import { ConfigError, loadConfig } from "./config.js";
 import { createSender } from "./create-sender.js";
 import { createPool } from "./db/pool.js";
+import { listen } from "./listen.js";
+import { createShutdown } from "./shutdown.js";
 
 let config;
 try {
@@ -27,12 +32,27 @@ if (sender.verify) {
   }
 }
 
-const db = createPool(config.databaseUrl);
-const { app, services } = createApp({ db, sender, config });
+const db = createPool(config.databaseUrl, config.db);
 
-// Loopback only: the dev server is not reachable from other machines.
-const server = app.listen(config.port, "127.0.0.1", () => {
-  console.log(`Parents Portal backend on http://127.0.0.1:${config.port}`);
+// The built frontend: on in production (a missing build is a deployment mistake, so fail now rather than serve a blank
+// site), off in development where the Vite dev server serves it and proxies /api.
+let frontendDist;
+if (config.serveFrontend) {
+  frontendDist = config.frontendDist ? path.resolve(config.frontendDist) : fileURLToPath(new URL("../../frontend/dist", import.meta.url));
+  if (!existsSync(path.join(frontendDist, "index.html"))) {
+    console.error("SERVE_FRONTEND is on but the frontend build was not found (index.html is missing). Run `npm run build` at the repository root first.");
+    process.exit(1);
+  }
+}
+if (config.nodeEnv === "production" && config.trustProxyHops === 0) {
+  console.warn("TRUST_PROXY_HOPS is 0: behind a reverse proxy (Railway) every visitor shares the proxy's address, so per-IP limits will treat everyone as one client. Set TRUST_PROXY_HOPS=1 on Railway.");
+}
+const { app, services, lifecycle } = createApp({ db, sender, config, frontendDist });
+
+// Development and test listen on this machine only (127.0.0.1) unless HOST says otherwise; production listens on every
+// interface so the hosting platform can reach it (see config.js and listen.js).
+const server = listen(app, config, () => {
+  console.log(config.host ? `Parents Portal backend on http://${config.host.includes(":") ? `[${config.host}]` : config.host}:${config.port}` : `Parents Portal backend listening on all interfaces, port ${config.port}`);
   // Say plainly WHICH database and WHICH delivery mode this process is using (names only, never credentials),
   // so a stray or stale backend can be recognised at a glance.
   const dbUrl = new URL(config.databaseUrl);
@@ -98,10 +118,8 @@ const pdfSweepTimer = setInterval(sweepPdfStorage, PDF_SWEEP_MS);
 pdfSweepTimer.unref();
 setTimeout(sweepPdfStorage, 5000).unref();
 
-function shutdown() {
-  clearInterval(housekeepingTimer);
-  clearInterval(pdfSweepTimer);
-  server.close(() => db.end().then(() => process.exit(0)));
-}
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+// Graceful stop (Railway sends SIGTERM on every deploy): readiness turns 503, in-flight requests finish (up to
+// SHUTDOWN_GRACE_MS), then the pool closes. A second signal does nothing extra.
+const shutdown = createShutdown({ server, db, health: lifecycle, timers: [housekeepingTimer, pdfSweepTimer], graceMs: config.shutdownGraceMs });
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));

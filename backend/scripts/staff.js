@@ -21,7 +21,7 @@ import { createPasswordHasher } from "../src/modules/auth/password.js";
 import { ProvisionError, ROLES, createStaff, setStaffDisabled, setStaffPassword } from "../src/modules/staff/provision.js";
 
 /** Prompts: hidden input on a terminal; otherwise one line per prompt from stdin (for piping). */
-function createPrompter(input = process.stdin, output = process.stdout) {
+export function createPrompter(input = process.stdin, output = process.stdout) {
   const tty = Boolean(input.isTTY);
   let lines = null;
   const nextLine = async () => {
