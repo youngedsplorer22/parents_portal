@@ -1,0 +1,258 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { ConfigError, loadConfig } from "../src/config.js";
+import { defaultGateOptions } from "../src/modules/auth/work-gate.js";
+
+const valid = {
+  NODE_ENV: "development",
+  DATABASE_URL: "postgresql://parents_portal_app:pw@localhost:5432/parents_portal_dev",
+  OTP_HMAC_SECRET: "a".repeat(64),
+  OTP_DELIVERY: "dev-console",
+};
+
+describe("loadConfig", () => {
+  it("applies the agreed defaults", () => {
+    const c = loadConfig(valid);
+    assert.equal(c.otp.ttlSeconds, 300);
+    assert.equal(c.otp.staffTtlSeconds, 900, "staff codes live 15 minutes by default; the parents' stay at 5");
+    assert.equal(c.otp.resendCooldownSeconds, 30);
+    assert.equal(c.otp.maxAttempts, 5);
+    assert.equal(c.otp.verificationTokenTtlSeconds, 900);
+    assert.equal(c.port, 4000);
+  });
+
+  it("lets the staff code lifetime be tuned within bounds, without touching the parents' one", () => {
+    const c = loadConfig({ ...valid, STAFF_OTP_TTL_SECONDS: "600" });
+    assert.equal(c.otp.staffTtlSeconds, 600);
+    assert.equal(c.otp.ttlSeconds, 300);
+    assert.equal(loadConfig({ ...valid, OTP_TTL_SECONDS: "120" }).otp.staffTtlSeconds, 900);
+    for (const bad of ["59", "1801", "abc", "0"]) assert.throws(() => loadConfig({ ...valid, STAFF_OTP_TTL_SECONDS: bad }), ConfigError, bad);
+  });
+
+  it("defaults the password sign-in limits and lets them be tuned within bounds", () => {
+    assert.deepEqual(loadConfig(valid).auth.passwordLogin, { windowSeconds: 900, maxPerEmail: 5, maxPerIp: 20 });
+    assert.equal(loadConfig({ ...valid, PASSWORD_LOGIN_MAX_ATTEMPTS_PER_EMAIL: "3" }).auth.passwordLogin.maxPerEmail, 3);
+    assert.throws(() => loadConfig({ ...valid, PASSWORD_LOGIN_MAX_ATTEMPTS_PER_EMAIL: "0" }), ConfigError);
+  });
+
+  it("sizes the password-hashing gate from the machine by default, and lets each limit be tuned within bounds", () => {
+    assert.deepEqual(loadConfig(valid).passwordHashing, defaultGateOptions());
+    assert.deepEqual(loadConfig({ ...valid, PASSWORD_HASH_CONCURRENCY: "2" }).passwordHashing, { concurrency: 2, maxQueue: defaultGateOptions().maxQueue });
+    assert.deepEqual(loadConfig({ ...valid, PASSWORD_HASH_QUEUE: "", PASSWORD_HASH_CONCURRENCY: "" }).passwordHashing, defaultGateOptions(), "an empty value means unset, never 0");
+    assert.deepEqual(loadConfig({ ...valid, PASSWORD_HASH_QUEUE: "0" }).passwordHashing, { concurrency: defaultGateOptions().concurrency, maxQueue: 0 });
+    for (const [key, bad] of [["PASSWORD_HASH_CONCURRENCY", "0"], ["PASSWORD_HASH_CONCURRENCY", "65"], ["PASSWORD_HASH_QUEUE", "-1"], ["PASSWORD_HASH_QUEUE", "10001"], ["PASSWORD_HASH_QUEUE", "x"]]) {
+      assert.throws(() => loadConfig({ ...valid, [key]: bad }), ConfigError, `${key}=${bad}`);
+    }
+  });
+
+  describe("PDF storage in Google Drive", () => {
+    const DRIVE = { PDF_STORAGE: "google-drive", GOOGLE_OAUTH_CLIENT_ID: "id.apps.googleusercontent.com", GOOGLE_OAUTH_CLIENT_SECRET: "client-secret-value", GOOGLE_DRIVE_REFRESH_TOKEN: "refresh-token-value", GOOGLE_DRIVE_ACCOUNT: "Dest@Example.com" };
+
+    it("is off by default and needs nothing, so the portal works locally without any Google setup", () => {
+      assert.deepEqual(loadConfig(valid).pdfStorage, { mode: "disabled", drive: null, missing: [], rootName: "Young Edsplorer" });
+    });
+
+    it("reads the destination account and credentials from the environment (the account is normalised, never hard-coded)", () => {
+      const c = loadConfig({ ...valid, ...DRIVE, GOOGLE_DRIVE_ROOT_FOLDER_NAME: "YE Registrations" }).pdfStorage;
+      assert.equal(c.mode, "google-drive");
+      assert.deepEqual(c.missing, []);
+      assert.deepEqual(c.drive, { clientId: DRIVE.GOOGLE_OAUTH_CLIENT_ID, clientSecret: DRIVE.GOOGLE_OAUTH_CLIENT_SECRET, refreshToken: DRIVE.GOOGLE_DRIVE_REFRESH_TOKEN, account: "dest@example.com" });
+      assert.equal(c.rootName, "YE Registrations");
+    });
+
+    it("a missing credential does not stop the server: it is named (never its value) and storage stays unconfigured", () => {
+      for (const key of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_DRIVE_REFRESH_TOKEN", "GOOGLE_DRIVE_ACCOUNT"]) {
+        const c = loadConfig({ ...valid, ...DRIVE, [key]: "" }).pdfStorage;
+        assert.equal(c.drive, null, key);
+        assert.deepEqual(c.missing, [key]);
+        assert.ok(!JSON.stringify(c).includes("client-secret-value") && !JSON.stringify(c).includes("refresh-token-value"));
+      }
+      assert.deepEqual(loadConfig({ ...valid, PDF_STORAGE: "google-drive" }).pdfStorage.missing, ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_DRIVE_REFRESH_TOKEN", "GOOGLE_DRIVE_ACCOUNT"]);
+    });
+
+    it("credentials set while storage is off are ignored (and never copied into the configuration)", () => {
+      const c = loadConfig({ ...valid, ...DRIVE, PDF_STORAGE: "disabled" }).pdfStorage;
+      assert.equal(c.drive, null);
+      assert.ok(!JSON.stringify(c).includes("client-secret-value"));
+    });
+
+    it("rejects an unknown mode, a malformed account and an unsafe folder name, without echoing the values", () => {
+      for (const bad of [{ PDF_STORAGE: "dropbox" }, { ...DRIVE, GOOGLE_DRIVE_ACCOUNT: "not-an-email" }, { ...DRIVE, GOOGLE_DRIVE_ROOT_FOLDER_NAME: "bad/name" }, { ...DRIVE, GOOGLE_DRIVE_ROOT_FOLDER_NAME: "x".repeat(81) }, { ...DRIVE, GOOGLE_OAUTH_CLIENT_SECRET: "line\nbreak" }]) {
+        assert.throws(() => loadConfig({ ...valid, ...bad }), (err) => {
+          assert.ok(err instanceof ConfigError);
+          for (const secret of ["client-secret-value", "refresh-token-value", "line\nbreak"]) assert.ok(!err.message.includes(secret), err.message);
+          return true;
+        });
+      }
+    });
+  });
+
+  describe("sign-in lifetimes", () => {
+    it("defaults: 15-minute access tokens; parents 3 days of inactivity / 7 days at most; staff 2 hours / 8 hours; 20 s race grace", () => {
+      const c = loadConfig(valid);
+      assert.deepEqual([c.auth.accessTtlSeconds, c.auth.idleTimeoutSeconds, c.auth.sessionTtlSeconds, c.auth.reuseGraceSeconds], [900, 259200, 604800, 20]);
+      assert.deepEqual([c.staff.accessTtlSeconds, c.staff.idleTimeoutSeconds, c.staff.sessionTtlSeconds, c.staff.reuseGraceSeconds], [900, 7200, 28800, 20]);
+    });
+
+    it("each can be configured", () => {
+      const c = loadConfig({ ...valid, PARENT_ACCESS_TOKEN_TTL_SECONDS: "600", PARENT_SESSION_IDLE_TIMEOUT_SECONDS: "86400", SESSION_TTL_SECONDS: "172800", STAFF_ACCESS_TOKEN_TTL_SECONDS: "300", STAFF_SESSION_IDLE_TIMEOUT_SECONDS: "3600", STAFF_SESSION_TTL_SECONDS: "14400", REFRESH_REUSE_GRACE_SECONDS: "10" });
+      assert.deepEqual([c.auth.accessTtlSeconds, c.auth.idleTimeoutSeconds, c.auth.sessionTtlSeconds], [600, 86400, 172800]);
+      assert.deepEqual([c.staff.accessTtlSeconds, c.staff.idleTimeoutSeconds, c.staff.sessionTtlSeconds, c.staff.reuseGraceSeconds], [300, 3600, 14400, 10]);
+    });
+
+    it("setting only the absolute limit (as before) still works: unset shorter limits are capped to fit inside it", () => {
+      const c = loadConfig({ ...valid, STAFF_SESSION_TTL_SECONDS: "600" });
+      assert.deepEqual([c.staff.accessTtlSeconds, c.staff.idleTimeoutSeconds, c.staff.sessionTtlSeconds], [600, 600, 600]);
+      const p = loadConfig({ ...valid, SESSION_TTL_SECONDS: "3600" });
+      assert.deepEqual([p.auth.accessTtlSeconds, p.auth.idleTimeoutSeconds, p.auth.sessionTtlSeconds], [900, 3600, 3600]);
+    });
+
+    it("refuses limits that don't nest (access <= inactivity <= absolute) or are out of range", () => {
+      for (const bad of [
+        { PARENT_ACCESS_TOKEN_TTL_SECONDS: "3600", PARENT_SESSION_IDLE_TIMEOUT_SECONDS: "1800" },
+        { PARENT_SESSION_IDLE_TIMEOUT_SECONDS: "700000" },
+        { STAFF_SESSION_IDLE_TIMEOUT_SECONDS: "30000" },
+        { STAFF_ACCESS_TOKEN_TTL_SECONDS: "30" },
+        { PARENT_ACCESS_TOKEN_TTL_SECONDS: "7200" },
+        { REFRESH_REUSE_GRACE_SECONDS: "600" },
+      ]) assert.throws(() => loadConfig({ ...valid, ...bad }), ConfigError, JSON.stringify(bad));
+    });
+  });
+
+  it("defaults the staff and public-link settings", () => {
+    const c = loadConfig(valid);
+    assert.equal(c.staff.sessionTtlSeconds, 28800);
+    assert.equal(c.staff.cookieSecure, false);
+    assert.equal(c.staff.publicBaseUrl, null);
+    assert.deepEqual(c.staff.joinLookups, { windowSeconds: 60, max: 30 });
+    assert.deepEqual(c.staff.login, c.auth.passwordLogin);
+    assert.equal(loadConfig({ ...valid, STAFF_SESSION_TTL_SECONDS: "600" }).staff.sessionTtlSeconds, 600);
+    assert.throws(() => loadConfig({ ...valid, STAFF_SESSION_TTL_SECONDS: "10" }), ConfigError);
+  });
+
+  it("accepts PUBLIC_BASE_URL only as an http(s) origin, and drops a trailing slash", () => {
+    assert.equal(loadConfig({ ...valid, PUBLIC_BASE_URL: "https://parents.example.com/" }).staff.publicBaseUrl, "https://parents.example.com");
+    assert.equal(loadConfig({ ...valid, PUBLIC_BASE_URL: "" }).staff.publicBaseUrl, null);
+    for (const bad of ["parents.example.com", "ftp://x.example.com", "https://x.example.com/path", "https://x.example.com/?a=1", "javascript:alert(1)"]) {
+      assert.throws(() => loadConfig({ ...valid, PUBLIC_BASE_URL: bad }), ConfigError, bad);
+    }
+  });
+
+  it("marks staff cookies Secure in production", () => {
+    const prod = { ...valid, NODE_ENV: "production", OTP_DELIVERY: "smtp", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587", SMTP_SECURE: "false", SMTP_USER: "u", SMTP_PASSWORD: "p", SMTP_FROM: "a@example.com" };
+    assert.equal(loadConfig(prod).staff.cookieSecure, true);
+  });
+
+  it("refuses a database that is not on this machine", () => {
+    const env = { ...valid, DATABASE_URL: "postgresql://u:pw@erp.internal.example:5432/erp" };
+    assert.throws(() => loadConfig(env), ConfigError);
+  });
+
+  it("accepts 127.0.0.1", () => {
+    loadConfig({ ...valid, DATABASE_URL: "postgresql://u:pw@127.0.0.1:5432/parents_portal_dev" });
+  });
+
+  it("refuses the dev-console sender outside development", () => {
+    for (const NODE_ENV of ["production", "test"]) {
+      assert.throws(() => loadConfig({ ...valid, NODE_ENV }), /only allowed when NODE_ENV=development/);
+    }
+  });
+
+  it("refuses an unknown or missing delivery method (no silent default)", () => {
+    assert.throws(() => loadConfig({ ...valid, OTP_DELIVERY: "email" }), ConfigError);
+    const { OTP_DELIVERY, ...without } = valid;
+    assert.throws(() => loadConfig(without), ConfigError);
+  });
+
+  it("rejects a weak HMAC secret without echoing it", () => {
+    const weak = "short-secret-value";
+    assert.throws(
+      () => loadConfig({ ...valid, OTP_HMAC_SECRET: weak }),
+      (err) => err instanceof ConfigError && !err.message.includes(weak),
+    );
+  });
+
+  it("never echoes the database password in errors", () => {
+    const env = { ...valid, DATABASE_URL: "postgresql://u:supersecretpw@remote.example:5432/x" };
+    assert.throws(
+      () => loadConfig(env),
+      (err) => err instanceof ConfigError && !err.message.includes("supersecretpw"),
+    );
+  });
+});
+
+const smtpEnv = {
+  SMTP_HOST: "smtp.example.com",
+  SMTP_PORT: "587",
+  SMTP_SECURE: "false",
+  SMTP_USER: "mailer-user",
+  SMTP_PASSWORD: "mailer-password-value",
+  SMTP_FROM: "Young Edsplorer <no-reply@example.com>",
+};
+const smtp = { ...valid, OTP_DELIVERY: "smtp", ...smtpEnv };
+
+describe("loadConfig: SMTP delivery", () => {
+  it("parses a complete SMTP configuration", () => {
+    const c = loadConfig(smtp);
+    assert.equal(c.delivery, "smtp");
+    assert.deepEqual(c.smtp, {
+      host: "smtp.example.com",
+      port: 587,
+      secure: false,
+      user: "mailer-user",
+      pass: "mailer-password-value",
+      from: "Young Edsplorer <no-reply@example.com>",
+    });
+  });
+
+  it("parses SMTP_SECURE=true and allows production (SMTP is the production path)", () => {
+    const c = loadConfig({ ...smtp, NODE_ENV: "production", SMTP_SECURE: "true", SMTP_PORT: "465" });
+    assert.equal(c.smtp.secure, true);
+    assert.equal(c.smtp.port, 465);
+  });
+
+  it("accepts a bare address as SMTP_FROM", () => {
+    assert.equal(loadConfig({ ...smtp, SMTP_FROM: "no-reply@example.com" }).smtp.from, "no-reply@example.com");
+  });
+
+  for (const key of Object.keys(smtpEnv)) {
+    it(`fails loudly, naming ${key}, when it is missing (never falls back to console)`, () => {
+      const env = { ...smtp };
+      delete env[key];
+      assert.throws(() => loadConfig(env), (err) => err instanceof ConfigError && err.message.includes(key) && /not falling back/.test(err.message));
+    });
+
+    it(`treats an empty ${key} as missing`, () => {
+      assert.throws(() => loadConfig({ ...smtp, [key]: "" }), (err) => err instanceof ConfigError && err.message.includes(key));
+    });
+  }
+
+  it("rejects malformed values and never echoes the password", () => {
+    for (const bad of [
+      { SMTP_SECURE: "yes" },
+      { SMTP_PORT: "99999" },
+      { SMTP_PORT: "abc" },
+      { SMTP_HOST: "smtp.example.com/evil" },
+      { SMTP_FROM: "not-an-address" },
+      { SMTP_FROM: "a@example.com\r\nBcc: attacker@example.com" },
+      { SMTP_USER: "user\nname" },
+    ]) {
+      assert.throws(() => loadConfig({ ...smtp, ...bad }), ConfigError, JSON.stringify(bad));
+    }
+    assert.throws(
+      () => loadConfig({ ...smtp, SMTP_PORT: "abc" }),
+      (err) => !err.message.includes("mailer-password-value") && !err.message.includes("mailer-user"),
+    );
+  });
+
+  it("refuses dev-console when SMTP settings are present, instead of choosing for you", () => {
+    assert.throws(
+      () => loadConfig({ ...valid, ...smtpEnv }),
+      (err) => err instanceof ConfigError && err.message.includes("SMTP_HOST") && !err.message.includes("mailer-password-value"),
+    );
+  });
+
+  it("allows dev-console when the SMTP_* variables are blank", () => {
+    loadConfig({ ...valid, SMTP_HOST: "", SMTP_PASSWORD: "" });
+  });
+});
