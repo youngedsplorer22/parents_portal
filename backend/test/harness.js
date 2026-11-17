@@ -12,6 +12,7 @@ export async function startApp({ db, auth = {}, staff = {}, passwordHashing, ren
   const clock = fakeClock();
   const sender = captureSender();
   const logged = [];
+  const warned = [];
   const { app, services } = createApp({
     db,
     sender,
@@ -24,7 +25,7 @@ export async function startApp({ db, auth = {}, staff = {}, passwordHashing, ren
     driveEndpoints: drive ? { apiBase: drive.options.apiBase, uploadBase: drive.options.uploadBase, tokenUrl: drive.options.tokenUrl, timeoutMs: 1500 } : undefined,
     clock,
     generateCode: counterCodes(),
-    logger: { error: (m) => logged.push(m) },
+    logger: { error: (m) => logged.push(m), warn: (m) => warned.push(m) },
     renderPdf,
   });
   const server = await new Promise((resolve) => {
@@ -130,7 +131,7 @@ export async function startApp({ db, auth = {}, staff = {}, passwordHashing, ren
   return {
     staffSetPassword,
     makeStaff, staffSignIn, staffUser, staffCookieOf, staffRefreshCookieOf,
-    api, base, clock, sender, logged, services, verifiedToken, signUp, logIn, cookieOf, refreshCookieOf,
+    api, base, clock, sender, logged, warned, services, verifiedToken, signUp, logIn, cookieOf, refreshCookieOf,
     close: () => new Promise((r) => server.close(r)),
   };
 }

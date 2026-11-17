@@ -212,7 +212,11 @@ export function createOnboardingService({
 
       const def = getDefinition(row.tour_type, row.participant_role);
       const errors = validateForm(def, row.data, today());
-      if (Object.keys(errors).length > 0) throw formIncompleteError(errors);
+      if (Object.keys(errors).length > 0) {
+        // Field NAMES only, never answers: shows which keys the server really holds when a page says it is complete.
+        logger.warn?.(`[onboarding] submit refused (version ${row.version}, tour ${row.tour_type}, role ${row.participant_role}): stored=[${Object.keys(row.data).sort()}] rejected=[${Object.keys(errors).sort()}]`);
+        throw formIncompleteError(errors);
+      }
 
       // The age is recalculated with today's date, so the submitted answers carry the age on the day of submission.
       const finalData = applyComputed(def, row.data, today() ?? todayIso());

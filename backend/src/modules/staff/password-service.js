@@ -48,6 +48,9 @@ export function createStaffPasswordService({ db, emailOtp, passwords, sender, lo
   }
   const optionsFor = async (email) => {
     const found = await eligibility(email);
+    // The caller always gets the same answer, so a missing or deactivated account would otherwise be invisible to the
+    // operator ("the code never arrives"). This line is for the server log only: it names no address and no code.
+    if (!found) logger.warn?.("[staff-password] code requested for an address with no active staff account: nothing was sent");
     return { delivery: found ? "background" : "none", context: { kind: found?.pending ? "setup" : "reset" } };
   };
 
