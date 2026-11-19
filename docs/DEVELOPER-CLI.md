@@ -36,6 +36,24 @@ Even then, the first line it prints is the database it will use. **Read it.** If
 
 Do not put those three settings in your `.env` file. Type them on the command line, only on the day you really mean to change the live database.
 
+### Running a command against the live database
+
+`npm run ops -- <command>` is `node --env-file=.env scripts/ops.js <command>`: it loads `apps/api/.env`, which is for local work only. Keep production settings out of that file.
+
+For the live database, run the script directly, from the `apps/api` directory:
+
+```
+NODE_ENV=production ALLOW_PRODUCTION_DATABASE=true OPS_CONFIRM_DATABASE=<exact database name> node scripts/ops.js portal:status --production
+```
+
+(`portal:status` only reads; replace it with any command in this guide.) Points to know:
+
+- This direct invocation does **not** load any `.env` file. Everything the process needs must already be in its environment, including the production `DATABASE_URL`. The three settings above are the safeguards; `DATABASE_URL` must be the live database's address, and the database name in it must be exactly the `OPS_CONFIRM_DATABASE` value.
+- The script passes `OPS_CONFIRM_DATABASE` to the same check the migration runner uses (`MIGRATE_CONFIRM_DATABASE`). You set only `OPS_CONFIRM_DATABASE` for these commands, and messages name that variable.
+- The database address rules in `DEPLOYMENT.md` (Railway foundation, Database TLS) apply here too: for example the live address may not be a test or development database, and `TEST_DATABASE_URL` must not be set.
+- Never print, echo or paste `DATABASE_URL` or any other secret: not in a terminal, a log, a ticket or a chat. The script prints only the database name, host and which variable it came from.
+- **Not verified:** that a Railway shell makes these variables available to this process, and how you open such a shell. This repository does not say. Check it in a staging environment first, with a read-only command such as `portal:status`.
+
 Commands that only read (`trip:list`, `portal:status`, `sales:list`, `sales:assignments`, `audit:list`) never change anything.
 
 ## A new school and trip: step by step
@@ -165,16 +183,22 @@ When you are sure, run it with both flags (the second one is the database name i
 npm run ops -- admin:remove --apply --confirm parents_portal_dev
 ```
 
-## Turning on the live checks (production, one time per portal)
+On the live database, use the production invocation from *Running a command against the live database* and add `--production`: `node scripts/ops.js admin:remove --production --apply --confirm <database name>`. This has not been run on any live database.
 
-In production, `PORTAL_BINDING_REQUIRED=true` on the API is required: the API refuses to start in production without it (and refuses `false`). Local development and tests do not need it. Then the API accepts a registration only from a public portal it can identify, and only for the trip bound to that portal. Each public portal needs its own secret:
+## The live checks in production (one time per portal)
+
+`PORTAL_BINDING_REQUIRED=true` on the API is **mandatory for production API startup**: the API refuses to start in production without it, and refuses `false`. Local development and tests do not need it. With it on, the API accepts a registration only from a public portal it can identify, and only for the trip that is bound to that portal and open. Each public portal needs its own secret:
 
 1. Make a long random value (at least 32 characters) for each portal you use. Use a different one for each.
 2. On the **API** service, set `PORTAL_PROXY_SECRET_DOMESTIC_NONE` (and the matching variable for each other portal you use): `..._DOMESTIC_PAYMENT`, `..._INTERNATIONAL_PAYMENT`, `..._INTERNATIONAL_NONE`.
 3. On each **portal** service, set `PORTAL_PROXY_SECRET` to the same value as that portal's variable on the API.
 4. Keep the values out of Git and out of the portal's source files. They are never sent to a browser.
 
-Set the secrets and bind each portal's trip (Step 6) **before** you turn `PORTAL_BINDING_REQUIRED` on, or new registrations on that portal stop until you do.
+**Order.** Set the flag and the portal secrets on the API **before the first production deployment of the API**: it will not start without them. Binding comes later and separately. A portal's trip can be bound after its website is deployed, and until its trip is bound **and** open that portal accepts no registrations (that is expected, not a fault). The safe sequence for putting a school on a portal, or switching it to another school, is:
+
+configure (`deployment.config.js`) → build → deploy the portal → `portal:bind` → `trip:open`
+
+That is Steps 2 to 7 above. The full explanation, the check and the way back are in `DEPLOYMENT.md` ("Switching a portal from school A to school B"). Whether these steps work as written on Railway has not been verified; the server rules behind them are covered by automated tests on a local test database.
 
 ## If a command says "Stopped:"
 

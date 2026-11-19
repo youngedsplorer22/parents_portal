@@ -74,15 +74,19 @@ So any proxy in front of the backend must pass the browser's Host through unchan
 
 ## HTTPS and proxy
 - Serve everything over HTTPS; `NODE_ENV=production` makes cookies `Secure`. Railway terminates TLS.
-- **`TRUST_PROXY_HOPS`** is the number of proxies in front of the server (Railway: `1`; local: `0`, the default). Express then
-  reads the client address from `X-Forwarded-For` counting that many entries **from the right** (the ones the trusted proxy
-  added); anything a caller wrote further left is ignored. `X-Real-IP`, `Forwarded` and `X-Forwarded-Host` are never used
-  (the same-site check compares `Origin` with the real `Host` header). If the forwarded value is not an IP address, the
-  connection address is used instead. All per-IP limits (OTP sends, password sign-in, refresh, public link lookups, mobile)
-  read this one address. Production logs a warning when it is `0`.
-  **STAGING:** confirm that Railway's edge *appends* the real client address to `X-Forwarded-For` (so `1` is right) by
-  calling `/api/auth/login/password` with a forged `X-Forwarded-For: 1.2.3.4` and checking the limit follows your real address.
-  Too high a value lets callers pick their own address; too low makes everyone share the proxy's address.
+- **`TRUST_PROXY_HOPS`** is the number of proxies in front of the server whose `X-Forwarded-For` entries the API trusts (local: `0`,
+  the default). Express then reads the client address from `X-Forwarded-For`, counting that many entries **from the right** (the
+  ones the trusted proxy added); anything a caller wrote further left is ignored. `X-Real-IP`, `Forwarded` and `X-Forwarded-Host`
+  are never used (the same-site check compares `Origin` with the real `Host` header). If the forwarded value is not an IP address,
+  the connection address is used instead. All per-IP limits (OTP sends, password sign-in, refresh, public link lookups, mobile)
+  read this one address. Production logs a warning when it is `0`. A value too high lets callers choose their own address; a value
+  too low makes everyone share the proxy's address.
+  **The production value is not decided.** How many proxies sit between a visitor and the API on Railway, and whether Railway's edge
+  appends to or replaces a caller's `X-Forwarded-For`, has not been established: Railway's documentation does not say, and its
+  staff's answers disagree. Do not assume `0` or `1`. Leave the production value undecided until the isolated staging
+  verification in `docs/CLIENT-IP-STAGING-VERIFICATION.md` (a throwaway echo service, no production traffic) has been carried
+  out and has established the trusted proxy chain. Do not test client-IP handling by sending forged headers to a real
+  endpoint such as a sign-in route.
 - **Registration links.** `npm run ops -- trip:create` prints a trip's link; the API builds it from the trip's tour template, so each
   link opens the portal that serves that template. Set one variable per portal, each to that portal's real public origin
   (`https://host`, nothing else: no path, no spaces; a trailing slash is dropped):
@@ -108,8 +112,9 @@ So any proxy in front of the backend must pass the browser's Host through unchan
 There is **no admin portal and no admin login**. The four public portals (`apps/portal-domestic-paid`, `portal-domestic-free`,
 `portal-international-paid`, `portal-international-free`; the screens say With Payment and Without Payment) are reusable templates, each
 with its own Railway service, and there is **no new service per school or trip**. One template serves **one school and one trip at a
-time**. Everything that sets a school or trip up is a developer command, run on your own computer: see **`docs/DEVELOPER-CLI.md`** for
-the step-by-step guide, including how the commands protect the live database from a mistake.
+time**. Everything that sets a school or trip up is a developer command, run by a developer (on your own computer for local work; against the live
+database with the production invocation, whose Railway route is not yet verified): see **`docs/DEVELOPER-CLI.md`** for the step-by-step
+guide, including how the commands protect the live database from a mistake.
 
 **What protects the old school.** Three independent things, so redeploying a template for the next school can never show one school's
 branding to another school's parents:
@@ -147,13 +152,16 @@ Because there is one binding row per template, **A and B can never both accept**
 deliberate. This is **not zero downtime**: from the moment the new website is live until `trip:open B` has run, B's link says registration is
 closed, and A's link says it is closed from the moment the new website is live (the new website only knows B). Do it in a quiet period.
 
+The commands below are written as `npm run ops -- <command>`, which is the local form. Against the live database use the production
+invocation in `docs/DEVELOPER-CLI.md` (*Running a command against the live database*), which has not been verified on Railway.
+
 **Before you start (nothing live changes):**
 1. `npm run ops -- trip:create ... B` (a draft). `npm run ops -- trip:config <B>` prints its values.
 2. Edit that portal's `src/deployment.config.js`: B's values, and B's logo under `src/school-logos/` with a `schoolLogos` entry. **Keep A's entry
    and file.** Build it locally: `npm run build -w @pp/portal-<name>`. The build stops if the file is empty or invalid.
 3. Make sure A's registration is finished. Check `npm run ops -- portal:status`.
 
-**The switch, in this order:**
+**The switch, in this order** (configure and build are in *Before you start*; school A stays bound until step 2):
 1. **Deploy that one portal's website** (new `deployment.config.js`). Wait until it is healthy. If the build or deploy fails, Railway keeps the
    old website and nothing in the database has changed: stop and fix it. (Deploying first is deliberate: a failure here costs nothing. Binding
    first and then failing to deploy would leave B open on the server with no page for it.)
@@ -164,8 +172,20 @@ closed, and A's link says it is closed from the moment the new website is live (
 available". A parent from school A can still log in at `/parent/login` on the same address and sees their own registration, school name,
 logo (from `schoolLogos`), PDF, tickets and itinerary: nothing about them is deleted or hidden by any of these commands.
 
-**Going back:** `npm run ops -- portal:bind <A>`, then `trip:open <A>` (A was closed by the first switch), and redeploy the previous website
-version in Railway. Never touch the other three portals or the API.
+**Going back (rollback to school A).** Reverse it in the same safe order: the website first, then the server rules.
+1. **Redeploy the previous website build of that one portal** (the one with school A's `deployment.config.js`) and wait until it is healthy.
+2. `npm run ops -- portal:bind <old-trip>`: the binding returns to A. The new trip (B) is **closed and its public page switched off** in the
+   same step, exactly as A was when B was bound. Nothing is deleted.
+3. `npm run ops -- trip:open <old-trip>`: A was closed by the first switch, so it must be opened again. Registrations for A resume only now.
+4. **Verify** with `npm run ops -- portal:status`: it shows A `[active]`. A's link shows the registration button and B's link says it is
+   closed.
+
+Like the switch, this is not zero downtime: A's registration page is unavailable from the moment B was bound until step 3. Never touch the
+other three portals or the API.
+
+**Not verified:** the database steps (`portal:bind` back to A, then `trip:open` A) are covered by an automated test on a local test
+database. Neither the switch nor this rollback has been run on Railway or on the live database, and how you redeploy the previous
+website build in Railway (redeploy the earlier deployment, or rebuild the earlier configuration) has not been checked.
 
 ### Portal service settings (each public portal, and the Sales portal)
 Each portal's web server refuses to start in production (NODE_ENV=production, or on Railway) unless it knows what it is. `PORTAL_ROLE` is set
@@ -176,13 +196,15 @@ start if it has one. No message ever prints a secret. Locally, none of this is n
 settings, that override must keep `PORTAL_ROLE`.
 
 ### Production settings for the server (a Railway variable change: yours to make, never made by code here)
-- `PORTAL_BINDING_REQUIRED=true` on the API. **Required in production: the API refuses to start in production without it, and refuses `false`.** Bind each trip first. Then a template with no bound trip accepts
-  nobody, a sign-up with no trip link is refused (`TRIP_REQUIRED`), and a registration must come from a recognised portal.
+- `PORTAL_BINDING_REQUIRED=true` on the API. **Required in production: the API refuses to start in production without it, and refuses `false`.**
+  With it on, a portal whose template has no bound trip accepts nobody, a sign-up with no trip link is refused (`TRIP_REQUIRED`), and a
+  registration must come from a recognised portal. **An unbound portal never accepts registrations.**
 - One secret per portal you use (32 or more characters, a different one each, kept out of Git):
   `PORTAL_PROXY_SECRET_DOMESTIC_NONE`, `PORTAL_PROXY_SECRET_DOMESTIC_PAYMENT`, `PORTAL_PROXY_SECRET_INTERNATIONAL_NONE`,
   `PORTAL_PROXY_SECRET_INTERNATIONAL_PAYMENT` on the **API** service; and on each **portal** service, `PORTAL_PROXY_SECRET` set to the
   same value as that portal's variable on the API. The API refuses to start with `PORTAL_BINDING_REQUIRED=true` and no secret, or with
-  two equal secrets. Set the secrets and bind each trip **before** turning the flag on, or that portal's new registrations stop.
+  two equal secrets. Set the secrets before the first production deploy of the API. A portal accepts a registration only when its
+  trip is both bound (`portal:bind`) and open (`trip:open`); see *First production deployment, in order*.
 
 ### Sales and itineraries
 A Sales person is an exact email address a developer added (`npm run ops -- sales:allow`); only that address can set a password (by an
@@ -210,16 +232,23 @@ first. Production: back up, then `npm run migrate:production` with the usual con
 - `GET /api/health` and `/api/health/live`: liveness, the process answers; never touches the database. `GET /api/health/ready`:
   readiness, `SELECT 1` within 2 s and not shutting down; otherwise `503`. Bodies are only `{"status":"ok"}` or
   `{"status":"unavailable"}`. Readiness shares one query between concurrent callers and caches for 1 s.
-  `railway.json` uses **readiness** as the deploy health check.
+  `railway.json` (legacy) and `railway/api.json` (the API service) use **readiness** as the deploy health check.
 - Shutdown (`SIGTERM`/`SIGINT`): readiness turns 503, new connections stop, in-flight requests get `SHUTDOWN_GRACE_MS` (10 s),
   stragglers are dropped, the pool closes, exit code 0 (1 if anything was forced). **STAGING:** check Railway's own stop
   timeout (default is longer than 10 s) and that a redeploy under load drops no requests.
 
-## Root build and start (stage 2)
-- `railway.json` + root `package.json` (the existing single service): build = `npm run build` (`npm ci --include=dev` for the npm
+## Root build and start (stage 2): the legacy single service
+**This is the legacy layout. It is not the configuration to select for the new split deployment.** The root `railway.json` and
+root `package.json` describe the earlier single Railway service, in which one API process also serves the built website. The
+split deployment (one API service, four public portal services and one Sales portal service) uses the files in `railway/`, listed
+in *Railway service checklist* below. A split service left on the default root `railway.json` would build the website and start the
+API, which no split service should do.
+- `railway.json` + root `package.json` (the legacy single service): build = `npm run build` (`npm ci --include=dev` for the npm
   workspaces, then builds `packages/web-core/dist`); start = `npm start` (= `npm start -w @pp/api`, the platform's environment, no
   `.env` file). The API serves that build, as before.
-- The split layout (four public portals + staff portal + one API) is described in `docs/ARCHITECTURE.md`; its Railway configs are in `railway/`.
+- That layout has no portal identity, so once production enforces `PORTAL_BINDING_REQUIRED=true` it cannot take new
+  registrations. It is kept as the record of the previous layout.
+- The split layout (four public portals + Sales portal + one API) is described in `docs/ARCHITECTURE.md`; its Railway configs are in `railway/`.
 - Locally: `npm run dev:backend` / `npm run dev:frontend` from the root (or `npm run dev` inside `apps/api` and `packages/web-core`).
 - **Migrations are not run by start or build.** Run `npm run migrate:production` (see stage 1) yourself, once per release, with a backup.
 
@@ -279,14 +308,71 @@ connection at start, so a wrong host, port or login fails the deploy instead of 
   "SMTP connection to ... verified."
 
 ## Railway service checklist
-Build and start come from `railway.json` (`npm run build`, `npm start`); health check `/api/health/ready`.
-Variables: `NODE_ENV=production`, `DATABASE_URL` (reference the Postgres service's private URL), `ALLOW_PRODUCTION_DATABASE=true`,
-`TRUST_PROXY_HOPS=1`, the `OTP_DELIVERY`/`SMTP_*` set above, plus the auth, staff and Google Drive variables already listed in
-`apps/api/.env.example` and `GOOGLE_DRIVE_SETUP.md`. `PORT` is injected by Railway.
-Order for the first deploy: deploy (the readiness check passes on an empty database) -> back up -> run
-`npm run migrate:production -w @pp/api` once from `railway ssh` with `MIGRATE_CONFIRM_DATABASE` set to the database name
--> remove `MIGRATE_CONFIRM_DATABASE` (there is no admin to bootstrap; see *Staff accounts*).
-Password hashing uses about 128 MiB per concurrent hash; check the service's memory limit against `PASSWORD_HASH_CONCURRENCY`.
+The split deployment is one Postgres service plus **six** application services. Each application service must have its config-as-code
+path set, in that service's Railway settings (by you; nothing in the repository sets it), to **its own** file below. Do not leave any
+of them on the default root `railway.json`: that file is the legacy single service (see *Root build and start*).
+
+| Service | Config file to select | What it runs |
+|---|---|---|
+| API | `railway/api.json` | The API only (`SERVE_FRONTEND=false npm start -w @pp/api`). Builds no website. Health check `/api/health/ready`. |
+| Public portal: Domestic, with payment | `railway/portal-domestic-paid.json` | That portal's website through the web server (`PORTAL_ROLE=public`). Health check `/healthz`. |
+| Public portal: Domestic, without payment | `railway/portal-domestic-free.json` | The same, for its own portal. |
+| Public portal: International, with payment | `railway/portal-international-paid.json` | The same, for its own portal. |
+| Public portal: International, without payment | `railway/portal-international-free.json` | The same, for its own portal. |
+| Sales portal | `railway/portal-staff.json` | The Sales website through the web server (`PORTAL_ROLE=staff`). Health check `/healthz`. |
+
+Variables, by service (names only; set them in the service's **Variables** tab, never in a file or the repository):
+- **API:** `NODE_ENV=production`, `DATABASE_URL` (reference the Postgres service's private URL), `ALLOW_PRODUCTION_DATABASE=true`,
+  `OTP_HMAC_SECRET`, the `OTP_DELIVERY`/`SMTP_*` set above, `PORTAL_BINDING_REQUIRED=true`, one `PORTAL_PROXY_SECRET_<TEMPLATE>` for
+  each public portal in use, the four `PUBLIC_BASE_URL_<TEMPLATE>`, plus the auth, staff and Google Drive variables already listed in
+  `apps/api/.env.example` and `GOOGLE_DRIVE_SETUP.md`. `PORT` is injected by Railway. **`TRUST_PROXY_HOPS` is deliberately not
+  listed: its production value is undecided until the staging verification in `docs/CLIENT-IP-STAGING-VERIFICATION.md` has
+  established the trusted proxy chain** (see *HTTPS and proxy*). Decide it before go-live.
+- **Each of the four public portals:** `PORTAL_PROXY_SECRET` (the same value as that portal's `PORTAL_PROXY_SECRET_<TEMPLATE>` on the
+  API, and different for every portal) and `API_URL` (the API's private address). `PORT` is injected by Railway.
+- **Sales portal:** `API_URL` only. It must not have a `PORTAL_PROXY_SECRET`, and it will refuse to start if it does.
+
+### First production deployment, in order
+Nothing accepts a registration before step 9. Keep `PORTAL_BINDING_REQUIRED=true` throughout: the API will not start in production
+without it, and an unbound portal, or a portal whose bound trip is not open, never accepts a registration.
+1. **Set the API service's variables** (names above; the values are yours and never go in the repository): every mandatory
+   production variable, one `PORTAL_PROXY_SECRET_<TEMPLATE>` for each public portal in use (32 or more characters, all different), and
+   `PORTAL_BINDING_REQUIRED=true`. `TRUST_PROXY_HOPS` stays undecided here: its value is set only after the staging verification in
+   `docs/CLIENT-IP-STAGING-VERIFICATION.md` has established the trusted proxy chain, and that must be done before step 9.
+2. **Deploy the API** with `railway/api.json`. The readiness check passes on an empty database (it only runs `SELECT 1`).
+3. **Back up the database and verify the backup** (it exists, is complete and can be restored) before anything changes the schema.
+4. **Apply the migrations**, only after step 3, once, from `railway ssh`: `npm run migrate:production -w @pp/api` with `MIGRATE_CONFIRM_DATABASE` set to the
+   database name and the other safeguards from *Railway foundation* (`NODE_ENV=production`, `ALLOW_PRODUCTION_DATABASE=true`). The
+   runner applies every pending migration in file-name order, so decide about migration 019 first (see *Migration 020*). Then remove
+   `MIGRATE_CONFIRM_DATABASE` (there is no admin to bootstrap; see *Staff accounts*).
+5. **Create each real trip as a draft and bind it to its portal template** with the developer commands in `docs/DEVELOPER-CLI.md`:
+   `trip:create`, then `portal:bind <school>/<branch>/<trip>`. A trip can be bound only to the portal of its own template. Do **not**
+   run `trip:open` yet: a bound draft trip accepts no registration. Check with `portal:status`. Against the live database these commands
+   need the four safeguards described in that document. `npm run ops` reads `apps/api/.env`, which does not exist on Railway; in a shell
+   that already has the production variables, run `node scripts/ops.js <command> --production` from `apps/api` instead. This repository
+   does not say how you reach such a shell, so check that route in staging first. At this step also add the Sales people
+   (`sales:allow`, `sales:assign`) and, if the database has any old admin accounts, remove them once (*Removing the old admin accounts*:
+   dry run first, and only after step 3).
+6. **Prepare and deploy each portal service**, each with its own file in `railway/`: its `src/deployment.config.js` must name the trip you
+   bound in step 5 (*Preparing a portal for a school*), and its build must pass. Set `PORTAL_PROXY_SECRET` (the same value as that
+   portal's variable on the API) and `API_URL`; the Sales portal gets `API_URL` only.
+   **Bind and deploy order.** In this first deployment no school is yet on any portal, so binding a draft trip (step 5) before its website is
+   deployed (step 6) is safe: it accepts nothing until step 9. Binding after the website is deployed is equally valid. When a portal
+   already serves a school and you are switching it, the order is different and matters: deploy the new website first, then
+   `portal:bind`, then `trip:open` (see *Switching a portal from school A to school B*).
+7. **Verify, with registrations still closed:** the API readiness check and every portal's `/healthz`; each portal's trip page says
+   registration is closed; `portal:status` shows the right trip for each portal; a Sales person can set a password with the emailed
+   code, sign in, see only their assigned trips and edit an itinerary item; and, if participants already exist, one can still sign in
+   and see their dashboard.
+8. **Verify the registration workflow end to end** before any public use: emailed code, save and resume, submit, PDF generated and
+   stored in Google Drive, payment status (paid portals), and the dashboard sections (Personal Details, Payment Status, Insurance,
+   Train / Flight Tickets, Live Tracking, Itinerary). This needs an open trip, so do it in a separate staging environment with its own
+   database and secrets where you can. If it has to be done in production, open only that trip (step 9), do not share its link, register
+   with an address you control, and treat that record as a real one.
+9. **Open each trip** (`trip:open`) only when steps 1 to 8 have passed and `TRUST_PROXY_HOPS` has been decided and applied. A trip's portal
+   accepts registrations only from this moment, and only because the trip is bound to it and open. Then share the registration link.
+
+Password hashing uses about 128 MiB per concurrent hash; check the API service's memory limit against `PASSWORD_HASH_CONCURRENCY`.
 
 ## Still required
 Production domain and TLS, mail sender domain (SPF/DKIM) for OTP emails, a scheduled call to the `purgeExpired` housekeeping,
