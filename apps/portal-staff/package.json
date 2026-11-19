@@ -1,0 +1,17 @@
+{
+  "name": "@pp/portal-staff",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Staff portal: a thin app over @pp/web-core. Build output is served by apps/web-server.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@pp/web-core": "*"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  }
+}

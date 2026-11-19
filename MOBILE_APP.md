@@ -1,4 +1,4 @@
-# Team Leader mobile app (`mobile/`)
+# Team Leader mobile app (`apps/mobile/`)
 
 A React Native app (Expo SDK 57, React Native 0.86.3, TypeScript) for Android and iOS. A Team Leader shares their
 phone's location with the parents of a trip they lead, **including while the phone is locked**. It uses the existing
@@ -95,7 +95,7 @@ App Store need Xcode 16. It has no Java or Android SDK installed either.
 ### Steps (Android, local)
 
 ```bash
-cd mobile
+cd apps/mobile
 npm install
 cp .env.example .env            # set EXPO_PUBLIC_API_BASE_URL to the portal's https:// address
 npx expo run:android            # builds a development build and installs it on the connected phone
@@ -110,7 +110,7 @@ ALLOW_LOCAL_HTTP=1 EXPO_PUBLIC_API_BASE_URL=http://<computer-ip>:4000 npx expo r
 ### Steps (iOS, on a Mac with Xcode 16+)
 
 ```bash
-cd mobile && npm install
+cd apps/mobile && npm install
 EXPO_PUBLIC_API_BASE_URL=https://<portal> npx expo run:ios --device
 ```
 
@@ -123,7 +123,7 @@ EXPO_PUBLIC_API_BASE_URL=https://<portal> npx expo run:ios --device
 ## Checks
 
 ```bash
-cd mobile
+cd apps/mobile
 npm test            # Jest (jest-expo): 31 tests
 npm run typecheck   # TypeScript, strict
 npm run lint        # eslint-config-expo

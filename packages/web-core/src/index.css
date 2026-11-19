@@ -1,0 +1,2077 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+:root {
+  /* Design tokens: one restrained palette for the parent portal and the staff panel. */
+  --ink: #14213a;
+  --ink-2: #2a3850;
+  --muted: #5d6b82;
+  --subtle: #8491a4;
+  --line: #e3e9f2;
+  --line-strong: #cfd8e6;
+  --surface: #ffffff;
+  --canvas: #f5f7fb;
+  --brand: #2364e8;
+  --brand-hover: #1c55c9;
+  --brand-soft: #eef4ff;
+  --brand-ink: #1a4fc4;
+  --success: #23774f;
+  --success-soft: #ebf7f0;
+  --danger: #b4372f;
+  --danger-soft: #fdf0ee;
+  --focus: 0 0 0 3px rgba(35, 100, 232, 0.28);
+  --radius: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(20, 33, 58, 0.05);
+  --shadow: 0 1px 2px rgba(20, 33, 58, 0.04), 0 6px 20px rgba(20, 33, 58, 0.06);
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #101a2f;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+/* The document scrolls normally at every width. (It used to be overflow: hidden above 700 px, with the sign-in card
+   scrolling inside itself: on a short laptop window the card's lower half, including the submit button, looked cut off,
+   and scrolling over the background did nothing.) The signed-in onboarding/dashboard screen has its own full-screen
+   scroller (.onboarding-screen), so it never scrolls twice. */
+body {
+  min-height: 100vh;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+/* Tailwind's base reset sets headings to body weight. Restore a heading weight everywhere, at zero specificity
+   (:where), so any component that sets its own weight still wins. */
+:where(h1, h2) {
+  font-weight: 700;
+}
+:where(h3, h4) {
+  font-weight: 650;
+}
+button {
+  cursor: pointer;
+}
+/* ==========================================
+   MAIN PAGE
+========================================== */
+.parent-portal {
+  position: relative;
+  min-height: 100svh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background-image: url("/try.png");
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.parent-portal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(12, 27, 49, 0.04)
+  );
+}
+/* ==========================================
+   GLASS CARD
+========================================== */
+.glass-card {
+  position: relative;
+  z-index: 1;
+  width: min(620px, 94vw);
+  /* Never a height limit or an inner scrollbar: a tall form (registration, or any form showing its error messages)
+     makes the PAGE longer, and the page scrolls. On a tall screen the card is still centred (.parent-portal). */
+  margin: auto 0;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.93);
+  /* The soft inner highlight is an inset shadow rather than a pseudo-element, so it always follows the card's edge. */
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 28px 80px rgba(11, 25, 44, 0.28),
+    0 8px 26px rgba(11, 25, 44, 0.14);
+}
+/* ==========================================
+   AUTH CONTENT
+========================================== */
+.auth-content {
+  padding: 30px 40px 34px;
+}
+/* ==========================================
+   BRAND
+========================================== */
+.brand {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: #1d5fff;
+  background: #fff;
+  border: 1px solid #e3eaf5;
+  box-shadow: 0 8px 22px rgba(26, 72, 137, 0.12);
+}
+.brand-name {
+  font-size: 20px;
+  line-height: 1.1;
+  font-weight: 700;
+  color: #12203a;
+}
+.brand-caption {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #71809a;
+}
+.brand-logo {
+  width: 176px;
+  height: 76px;
+  object-fit: contain;
+  display: block;
+}
+/* ==========================================
+   AUTH TABS
+========================================== */
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 5px;
+  margin: 6px 0 24px;
+  border-radius: 12px;
+  background: #edf2f8;
+  border: 1px solid #e3e9f2;
+}
+.auth-tab {
+  border: 0;
+  border-radius: 9px;
+  padding: 11px 14px;
+  background: transparent;
+  color: #4f5c74; /* 5.9:1 on the tab strip (was #6c7890 at 3.95:1) */
+  font-weight: 600;
+  transition: 0.2s ease;
+}
+.auth-tab:hover {
+  color: #17243a;
+}
+.auth-tab.active {
+  color: #173a82;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(22, 46, 85, 0.1);
+}
+
+/* Phones, tablets and any touch screen (shared by login, registration and the staff and parent screens): every text-only
+   control is at least 44 px tall to tap (they are 12-14 px type with no padding otherwise). */
+@media (max-width: 899px), (pointer: coarse) {
+  .text-button,
+  .text-link,
+  .back-link,
+  .auth-tab {
+    min-height: 44px;
+  }
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+  }
+  .text-button,
+  .text-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .text-button {
+    min-width: 44px; /* a short word such as "Edit" is still a full-size target */
+  }
+}
+/* ==========================================
+   FORM HEADING
+========================================== */
+.form-heading {
+  margin-bottom: 20px;
+}
+.form-heading h1,
+.success-panel h1 {
+  margin: 0;
+  color: #14213a;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+}
+.form-heading p,
+.success-panel p {
+  margin: 8px 0 0;
+  color: #71809a;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.form-heading strong {
+  color: #253653;
+  font-weight: 600;
+}
+/* ==========================================
+   FORM GRID
+========================================== */
+/* Paired fields (First / Last name, Role / Phone, Email / Password): every field starts at the top of its row, and
+   the row gap is the only space between rows. Nothing inside a field may push it down relative to its neighbour. */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 16px;
+}
+.field {
+  min-width: 0;
+}
+.field-label {
+  display: block;
+  margin: 0 0 6px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+.required {
+  color: #e05656;
+  margin-left: 3px;
+}
+/* ==========================================
+   INPUTS
+========================================== */
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  border: 1px solid #d5deea;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #8b98aa;
+  transition: 0.18s ease;
+}
+.input-wrap:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(35, 100, 232, 0.14);
+}
+.input-wrap svg {
+  flex: 0 0 auto;
+  margin-left: 14px;
+}
+.input-wrap input,
+.input-wrap select {
+  width: 100%;
+  height: 44px;
+  padding: 0 13px;
+  border: 0;
+  outline: 0;
+  color: #172033;
+  background: transparent;
+  font-size: 14px;
+}
+.input-wrap input::placeholder {
+  color: #a4afbd;
+}
+.select-wrap select {
+  appearance: none;
+  padding-right: 40px;
+  cursor: pointer;
+}
+.select-icon {
+  position: absolute;
+  right: 12px;
+  margin: 0 !important;
+  pointer-events: none;
+  color: #8491a4;
+}
+.input-wrap.has-error {
+  border-color: #d55b5b;
+  box-shadow: 0 0 0 3px rgba(213, 91, 91, 0.1);
+}
+.field-error {
+  margin: 6px 2px 0;
+  color: var(--danger);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.field-hint {
+  margin: 6px 2px 0;
+  color: #6f7c91;
+  font-size: 12px;
+  line-height: 1.45;
+}
+/* ==========================================
+   PRIMARY / SECONDARY BUTTONS
+========================================== */
+.primary-button,
+.secondary-button {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.primary-button {
+  color: #fff;
+  background: var(--brand);
+  box-shadow: 0 1px 2px rgba(20, 33, 58, 0.12), 0 4px 12px rgba(35, 100, 232, 0.18);
+}
+.primary-button:hover {
+  background: var(--brand-hover);
+}
+/* Disabled: a muted fill and a dark grey label (about 5.7:1), never faded with opacity. */
+.primary-button:disabled {
+  background: #dbe4f3;
+  color: #4a5872;
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.auth-tab:focus-visible,
+.social-button:focus-visible,
+.back-link:focus-visible,
+.text-button:focus-visible {
+  outline: 3px solid rgba(35, 100, 232, 0.32);
+  outline-offset: 2px;
+}
+.secondary-button {
+  width: auto;
+  padding: 0 18px;
+  margin-top: 20px;
+  color: var(--brand-ink);
+  background: var(--brand-soft);
+  border: 1px solid #d6e3fb;
+  text-decoration: none;
+}
+.secondary-button:hover:not(:disabled) {
+  background: #e3ecfe;
+}
+/* Sign-in forms (parent and staff): fields stacked directly in the form get clear space between a field and the next
+   label. Only DIRECT children: fields laid out in a .form-grid are spaced by the grid's gap. (A descendant selector here
+   once pushed Last Name 18 px below First Name, since only the second field of the pair matched.) */
+.auth-form > .field + .field {
+  margin-top: 18px;
+}
+/* "Forgot password?" under the password field: right-aligned with the field's edge, with room to breathe. */
+.forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+/* The "Send OTP" alternative under the password sign-in button. */
+.auth-form .secondary-button {
+  width: 100%;
+  margin-top: 12px;
+}
+.secondary-button:disabled {
+  background: #f1f4f9;
+  border-color: #dde3ec;
+  color: #5f6b80;
+  cursor: not-allowed;
+}
+/* ==========================================
+   SOCIAL LOGIN BUTTONS
+========================================== */
+.social-stack {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin-bottom: 21px;
+}
+.social-button {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 45px;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid #dbe3ee;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #26354d;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: 0.18s ease;
+  white-space: nowrap;
+}
+.social-button:hover {
+  border-color: #c5d2e4;
+  background: #ffffff;
+  box-shadow: 0 5px 14px rgba(27, 53, 91, 0.07);
+}
+.google-g {
+  flex: 0 0 auto;
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 700;
+  color: #4285f4;
+}
+.microsoft-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  grid-template-rows: 1fr 1fr !important;
+  gap: 2px;
+}
+.microsoft-icon i {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+}
+.microsoft-icon i:nth-child(1) {
+  background: #f35325;
+}
+.microsoft-icon i:nth-child(2) {
+  background: #81bc06;
+}
+.microsoft-icon i:nth-child(3) {
+  background: #05a6f0;
+}
+.microsoft-icon i:nth-child(4) {
+  background: #ffba08;
+}
+/* ==========================================
+   DIVIDER
+========================================== */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: #6f7c91; /* 4.6:1 on the card */
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #e1e7ef;
+}
+/* ==========================================
+   STATUS MESSAGE
+========================================== */
+.status-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.status-message.success {
+  color: #286a4d;
+  background: #edf8f1;
+  border: 1px solid #d6eedf;
+}
+.status-message.info {
+  color: #2e5f9e;
+  background: #eef5ff;
+  border: 1px solid #dbe9ff;
+}
+.status-message.error {
+  color: #a93d3d;
+  background: #fdf0f0;
+  border: 1px solid #f5d6d6;
+}
+/* ==========================================
+   SECURITY NOTE
+========================================== */
+.security-note {
+  display: flex;
+  gap: 9px;
+  margin-top: 19px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: #f3f6fa;
+  color: #738198;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.security-note svg {
+  flex: 0 0 auto;
+  color: #4e79c9;
+  margin-top: 1px;
+}
+/* ==========================================
+   LINKS / TEXT BUTTONS
+========================================== */
+.back-link,
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #2e64c7;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 17px;
+}
+.back-link:hover,
+.text-button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.text-button:disabled {
+  color: #9ba6b5;
+  cursor: default;
+  text-decoration: none;
+}
+/* ==========================================
+   OTP
+========================================== */
+.otp-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin: 20px 0 4px;
+}
+.otp-input {
+  width: 100%;
+  height: 50px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #fff;
+  outline: 0;
+  text-align: center;
+  color: #1b2a42;
+  font-size: 20px;
+  font-weight: 700;
+}
+.otp-input:focus {
+  border-color: #6f98ee;
+  box-shadow: 0 0 0 3px rgba(55, 111, 230, 0.1);
+}
+.otp-input:disabled {
+  background: #f4f6fa;
+}
+.otp-timer {
+  margin: 10px 0 0;
+  text-align: center;
+  color: #71809a;
+  font-size: 12px;
+}
+.otp-timer.expired {
+  color: #c44949;
+}
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.summary-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 18px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid #e3e9f2;
+  border-radius: 12px;
+  background: #f8fafd;
+  text-align: left;
+  font-size: 12.5px;
+}
+.summary-list dt {
+  color: #8491a4;
+}
+.summary-list dd {
+  margin: 0;
+  color: #253653;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.otp-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+.mock-note {
+  margin: 16px 0 0;
+  text-align: center;
+  color: #99a4b4;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+.centered-error {
+  text-align: center;
+}
+/* ==========================================
+   SUCCESS
+========================================== */
+.success-panel {
+  padding: 18px 0 6px;
+  text-align: center;
+}
+.success-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  color: #2e8a61;
+  background: #eaf8f0;
+}
+/* ==========================================
+   TABLET / MOBILE
+========================================== */
+@media (max-width: 700px) {
+    .parent-portal {
+        min-height: 100dvh;
+        padding: 18px 14px;
+    }
+    .glass-card {
+        width: min(100%, 560px);
+        border-radius: 24px;
+    }
+    .auth-content {
+        padding: 25px 22px 28px;
+    }
+    .form-grid {
+        grid-template-columns: 1fr;
+        gap: 13px;
+    }
+}
+/* ==========================================
+   SMALL MOBILE
+========================================== */
+@media (max-width: 500px) {
+  .social-stack {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 430px) {
+    .parent-portal {
+        padding: 12px;
+    }
+    .auth-content {
+        padding: 22px 17px 24px;
+    }
+    .brand {
+        margin-bottom: 20px;
+    }
+    .form-heading h1,
+    .success-panel h1 {
+        font-size: 25px;
+    }
+    .otp-row {
+        gap: 6px;
+    }
+    .otp-input {
+        height: 47px;
+        font-size: 18px;
+    }
+}
+/* ==========================================
+   GOOGLE + MICROSOFT SIDE-BY-SIDE BUTTONS
+   ========================================== */
+.social-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 12px !important;
+    margin: 0 0 21px 0 !important;
+}
+.social-action-button {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 0 12px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 9px !important;
+    border: 1px solid #dbe3ee !important;
+    border-radius: 11px !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #26354d !important;
+    font-family: inherit !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    cursor: pointer;
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        background 0.18s ease,
+        transform 0.18s ease;
+}
+.social-action-button:hover {
+    border-color: #c5d2e4 !important;
+    background: #ffffff !important;
+    box-shadow: 0 5px 14px rgba(27, 53, 91, 0.08);
+    transform: translateY(-1px);
+}
+.social-action-button:active {
+    transform: translateY(0);
+}
+/* GOOGLE */
+.social-action-button .google-g {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    font-size: 17px;
+    line-height: 1;
+    font-weight: 700;
+    color: #4285f4;
+}
+/* MICROSOFT */
+.social-action-button .microsoft-icon {
+    width: 16px !important;
+    height: 16px !important;
+    flex: 0 0 16px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: 1fr 1fr !important;
+    gap: 2px !important;
+}
+.social-action-button .microsoft-icon i {
+    display: block !important;
+    width: 100%;
+    height: 100%;
+}
+.social-action-button .microsoft-icon i:nth-child(1) {
+    background: #f35325;
+}
+.social-action-button .microsoft-icon i:nth-child(2) {
+    background: #81bc06;
+}
+.social-action-button .microsoft-icon i:nth-child(3) {
+    background: #05a6f0;
+}
+.social-action-button .microsoft-icon i:nth-child(4) {
+    background: #ffba08;
+}
+/* ==========================================
+   ONBOARDING (after sign-in)
+========================================== */
+/* Full-screen onboarding: no scenic background and no rounded translucent card (those belong to
+   the login/registration screens only). The fixed, scrolling container fills the viewport. */
+.onboarding-screen {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--canvas);
+  color: var(--ink);
+}
+.onboarding-shell {
+  width: 100%;
+  max-width: 1180px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 0 32px 48px;
+}
+/* Compact branded header: Young Edsplorer, a thin divider, then the school's logo when it has one. */
+.portal-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 0 -32px 28px;
+  padding: 10px 32px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+/* Co-branding: [Young Edsplorer] × [school]. One height (--brand-h) drives both slots so they balance; the school slot
+   is a box up to 2.4x as wide as it is tall, and any logo is contained in it without stretching. */
+.portal-brands {
+  --brand-h: 40px;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--brand-h) * 0.3);
+  min-width: 0;
+}
+.portal-logo {
+  display: block;
+  height: var(--brand-h);
+  width: auto;
+  max-width: calc(var(--brand-h) * 3.3);
+  object-fit: contain;
+  flex: none;
+}
+.portal-cross {
+  flex: none;
+  color: #9aa6b8;
+  font-size: calc(var(--brand-h) * 0.42);
+  font-weight: 300;
+  line-height: 1;
+  user-select: none;
+}
+.school-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--brand-h);
+  max-width: calc(var(--brand-h) * 2.4);
+  min-width: calc(var(--brand-h) * 1.6);
+  flex: 0 1 auto;
+}
+.school-logo img {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+/* No logo yet (it will come from the ERP): a quiet empty frame, not an icon or a made-up logo. */
+.school-logo.is-empty {
+  width: calc(var(--brand-h) * 2.2);
+  border: 1px dashed #c9d3e2;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #5f6b80; /* 5.4:1 on the frame (was #8a96a8, about 3:1) */
+  font-size: max(9px, calc(var(--brand-h) * 0.24));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 0 4px;
+  /* The words wrap ("SCHOOL / LOGO") instead of being cut off in the small phone header. */
+  overflow: hidden;
+}
+.portal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--subtle);
+  font-size: 13px;
+}
+.portal-header-actions .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The public trip page shows the same pair of logos inside its card. */
+.join-page .portal-header {
+  position: static;
+  justify-content: center;
+  margin: 0 0 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+.join-page .portal-brands { --brand-h: 54px; justify-content: center; }
+.onboarding-hello {
+  color: #253653;
+  font-weight: 600;
+}
+.onboarding-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 30px 0;
+  color: #71809a;
+  font-size: 13.5px;
+}
+
+/* Progress bar + percentage */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.progress-track {
+  flex: 1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dbe7fd;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #2364e8; /* same blue as the Verify email button (.primary-button) */
+  transition: width 0.3s ease;
+}
+.progress-value {
+  min-width: 3ch;
+  text-align: right;
+  color: #204b9b;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.progress-caption {
+  margin: 6px 0 20px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* Section list + panel */
+.onboarding-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.step-nav {
+  position: sticky;
+  top: 84px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.step-nav ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.step-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 10px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: left;
+}
+.step-item:hover {
+  background: #f3f6fb;
+}
+.step-item:focus-visible {
+  outline: 3px solid rgba(35, 100, 232, 0.28);
+  outline-offset: 1px;
+}
+.step-item.current {
+  background: #eaf1ff;
+  color: #14213a;
+  font-weight: 600;
+}
+.step-marker {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid #cfd8e6;
+  color: #8491a4;
+  background: #fff;
+}
+.step-item.complete .step-marker {
+  border-color: #2e8a61;
+  background: #2e8a61;
+  color: #fff;
+}
+.step-item.attention .step-marker {
+  border-color: #dd6a6a;
+  color: #c44949;
+}
+.step-item.current .step-marker {
+  border-color: #2364e8;
+  color: #2364e8;
+}
+.step-item.current.complete .step-marker {
+  color: #fff;
+}
+.step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #cfd8e6;
+}
+.step-label {
+  display: grid;
+  line-height: 1.3;
+}
+.step-number {
+  color: #7a8699;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.step-panel {
+  min-width: 0;
+  padding: 26px 28px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.step-heading {
+  margin: 0 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  outline: none;
+}
+.field-wide {
+  grid-column: 1 / -1;
+}
+.textarea-wrap {
+  align-items: stretch;
+}
+.input-wrap textarea {
+  width: 100%;
+  padding: 12px 13px;
+  border: 0;
+  outline: 0;
+  resize: vertical;
+  color: #172033;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.input-wrap input[type="date"] {
+  min-width: 0;
+}
+.input-wrap.derived {
+  background: #f4f7fb;
+}
+.input-wrap output {
+  display: block;
+  width: 100%;
+  padding: 0 13px;
+  color: #253653;
+  font-size: 13px;
+  font-weight: 600;
+}
+.step-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.step-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 20px;
+  border: 1px solid #d6e3fb;
+  border-radius: 10px;
+  color: var(--brand-ink);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 600;
+}
+.step-button:hover:not(:disabled) {
+  background: var(--brand-soft);
+}
+.step-button.primary {
+  margin-left: auto;
+  color: #fff;
+  border-color: var(--brand);
+  background: var(--brand);
+  box-shadow: 0 4px 12px rgba(35, 100, 232, 0.18);
+}
+.step-button.primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+.step-button:disabled {
+  background: #f5f7fa;
+  border-color: #e3e8f0;
+  color: #6b778b;
+  cursor: not-allowed;
+}
+.step-button:focus-visible {
+  outline: 3px solid rgba(35, 100, 232, 0.3);
+  outline-offset: 2px;
+}
+.onboarding-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--subtle);
+}
+.save-status {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.save-status.saved {
+  color: #286a4d;
+}
+.save-status.error,
+.save-status.conflict {
+  color: #a93d3d;
+}
+.text-button.danger {
+  color: #a93d3d;
+}
+.status-message .text-button {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Tour picker */
+.tour-picker {
+  max-width: 640px;
+  margin: 0 auto;
+}
+.tour-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.tour-legend {
+  padding: 0;
+  color: #14213a;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.tour-note {
+  margin: 8px 0 18px;
+  color: #71809a;
+  font-size: 13.5px;
+}
+.tour-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.tour-card {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 18px;
+  border: 1.5px solid #dbe3ee;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+}
+.tour-card input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+.tour-card:focus-within {
+  outline: 3px solid rgba(35, 100, 232, 0.28);
+  outline-offset: 2px;
+}
+.tour-card.selected {
+  border-color: #2364e8;
+  background: #eaf1ff;
+}
+.tour-title {
+  color: #14213a;
+  font-size: 16px;
+  font-weight: 600;
+}
+.tour-desc {
+  color: #71809a;
+  font-size: 12.5px;
+}
+.tour-continue {
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Review + submitted */
+.review-lead {
+  margin: 0 0 14px;
+  color: #71809a;
+  font-size: 13px;
+}
+.review-section {
+  margin-bottom: 16px;
+}
+.review-section h3 {
+  margin: 0;
+  color: #253653;
+  font-size: 14px;
+  font-weight: 600;
+}
+.review-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.review-head .text-button {
+  margin-left: auto;
+}
+.review-status {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #f1f5fc;
+  color: #5d6b82;
+  font-size: 11px;
+  font-weight: 600;
+}
+.review-status.complete {
+  background: #edf8f1;
+  color: #286a4d;
+}
+.review-status.attention {
+  background: #fdf0f0;
+  color: #a93d3d;
+}
+.summary-row {
+  display: contents;
+}
+.summary-error {
+  display: block;
+  margin-top: 2px;
+  color: #c44949;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.success-title {
+  margin: 0;
+  color: #14213a;
+  font-size: 26px;
+  letter-spacing: -0.03em;
+}
+
+/* Phones and tablets: a compact stepper. Every step is a numbered marker on one line, joined by a rule, so all steps
+   are visible at once (no sideways scrolling, no cut-off labels). The step names stay in the markup as each button's
+   accessible name, and the section heading below shows the current one. */
+@media (max-width: 860px) {
+  .onboarding-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .step-nav {
+    padding: 8px 12px;
+  }
+  .step-nav ol {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    gap: 2px;
+  }
+  .step-nav ol::before {
+    content: "";
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    top: 50%;
+    height: 2px;
+    background: var(--line);
+  }
+  .step-nav li {
+    position: relative;
+  }
+  .step-item,
+  .step-item.current,
+  .step-item:hover {
+    width: auto;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px;
+    justify-content: center;
+    background: transparent;
+  }
+  .step-item .step-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .step-marker {
+    width: 32px;
+    height: 32px;
+  }
+  .step-item.current .step-marker {
+    box-shadow: 0 0 0 4px #dbe7ff;
+  }
+}
+/* Very narrow phones (320 px): seven step markers at 44 px each are wider than the card, so they share the row. */
+@media (max-width: 400px) {
+  .step-nav li {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .step-item,
+  .step-item.current,
+  .step-item:hover {
+    width: 100%;
+    min-width: 0;
+  }
+}
+@media (max-width: 700px) {
+  .onboarding-shell {
+    padding: 0 16px 28px;
+  }
+  .portal-header {
+    margin: 0 -16px 20px;
+    padding: 8px 16px;
+  }
+  .portal-brands {
+    --brand-h: 34px;
+  }
+  .step-nav {
+    position: static;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .step-panel {
+    padding: 18px 16px 16px;
+  }
+  .tour-grid {
+    grid-template-columns: 1fr;
+  }
+  .step-actions {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spin {
+    animation: none;
+  }
+}
+
+/* Guidance example images (See example) */
+.field-example {
+  margin-top: 4px;
+}
+.example-toggle {
+  font-size: 12px;
+}
+.example-figure {
+  margin: 8px 0 0;
+  padding: 6px;
+  border: 1px solid #e3e9f2;
+  border-radius: 12px;
+  background: #fff;
+}
+.example-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+/* Greeting at the top of each onboarding form */
+.greeting {
+  margin: 0 0 22px;
+  padding: 18px 22px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: #33405a;
+  font-size: 14.5px;
+  line-height: 1.65;
+  width: 100%; /* spans the content area, like the progress bar and form below it */
+  text-align: left;
+}
+.greeting p {
+  margin: 0 0 12px;
+  max-width: 120ch; /* keeps very long lines readable on wide screens; the card itself stays full width */
+}
+.greeting p:last-child {
+  margin-bottom: 0;
+}
+.greeting-signoff {
+  font-weight: 600;
+  color: #14213a;
+}
+
+/* ==========================================
+   SCHOOL LINK PAGE (/join/:token)
+   Reuses the portal card; these classes only style the school name and trip facts.
+========================================== */
+.join-body {
+  text-align: center;
+  display: grid;
+  gap: 14px;
+}
+.join-school {
+  margin: 6px 0 0;
+  font-size: clamp(26px, 5vw, 36px);
+  line-height: 1.15;
+  font-weight: 700;
+  color: #172033;
+  overflow-wrap: anywhere;
+}
+.join-caption {
+  margin: -6px 0 0;
+  color: #5a6882;
+  font-size: 14px;
+}
+.join-trip {
+  margin: 4px auto 0;
+  padding: 14px 18px;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  width: 100%;
+  border-radius: 14px;
+  background: #f4f7fc;
+}
+.join-trip div {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+.join-trip dt {
+  color: #5a6882;
+}
+.join-trip dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.join-action {
+  text-decoration: none;
+}
+
+/* ==========================================
+   ADMIN PANEL (/admin/...)
+   Internal screen, separate from the parent portal's look. Everything is scoped under .admin.
+========================================== */
+.admin {
+  /* One content width for the header bar and the page, so the logo lines up with the content below it. */
+  --admin-width: 1120px;
+  --admin-gutter: max(16px, 3vw);
+  min-height: 100svh;
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 15px;
+}
+/* Headings: Tailwind's base reset leaves them at body weight, so the hierarchy is set here explicitly. */
+.admin h1 { margin: 12px 0 20px; font-size: 26px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; line-height: 1.2; overflow-wrap: anywhere; }
+.admin h2 { margin: 0 0 12px; font-size: 17px; font-weight: 650; color: var(--ink); letter-spacing: -0.01em; line-height: 1.3; }
+.admin h3 { margin: 0 0 8px; font-size: 15px; font-weight: 650; color: var(--ink); }
+/* Vertical rhythm: the reset zeroes paragraph and list margins, which left helper text touching the next field, button
+   or card. Blocks directly inside the page or a card get a consistent gap; a hint right under a field stays close. */
+:where(.admin-main, .admin-card, .admin-fresh) > * + :not(input, select, textarea) { margin-top: 14px; }
+:where(.admin-main, .admin-card) > :is(input, select, textarea, .admin-input) + p { margin-top: 6px; }
+.admin-main > h1 + * { margin-top: 0; }
+/* A one-line description under a page title belongs to the title, with clear space before the first card. */
+.admin h1:has(+ p) { margin-bottom: 6px; }
+.admin-main > p { margin-bottom: 18px; }
+.admin-main > p:has(> a:only-child) { margin: 12px 0 0; } /* the "<- back" link above a title */
+/* A heading beside a button in a header row: centred on the button, no extra space under it. */
+.admin-row > :is(h1, h2) { margin-bottom: 0; }
+/* Forms laid out on the grid: the explanatory line and the submit row are set apart from the fields. */
+.admin-form-grid > p.admin-full { margin: 10px 0 0; }
+.admin p + .admin-button { margin-top: 14px; }
+.admin-form-grid > .admin-full:last-child { margin-top: 16px; }
+/* Plain links only. A link styled as a button (.admin-button) takes its colours from the button classes; without this
+   :not(), `.admin a` out-ranked `.admin-button-primary` and painted the label blue on the blue button (invisible). */
+.admin a:not(.admin-button) { color: #2364e8; }
+.admin-loading, .admin > p { padding: 24px; }
+/* Top bar: brand on the left, sections in the middle, who is signed in on the right. */
+.admin-header {
+  background: #fff;
+  border-bottom: 1px solid #dfe6f2;
+  box-shadow: 0 1px 2px rgba(23, 32, 51, 0.04);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+/* Three separate groups. Wide screens: brand | sections | account on one row. Narrower screens (see the
+   media queries below) put the sections on their own row, so the groups can never run into each other. */
+/* Two rows at every width: brand and account on top, the section tabs underneath (four Admin sections plus the account
+   block don't fit one row at laptop widths). Phones rearrange it further below. */
+.admin-header-bar {
+  max-width: calc(var(--admin-width) + 2 * var(--admin-gutter));
+  margin: 0 auto;
+  padding: 10px var(--admin-gutter) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "brand account" "nav nav";
+  align-items: center;
+  column-gap: 16px;
+}
+.admin .admin-brand {
+  grid-area: brand;
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  color: #172033;
+  text-decoration: none;
+  border-radius: 8px;
+}
+/* The official logo file (1487 x 455), scaled by height only so it keeps its proportions. */
+.admin-brand-logo { display: block; height: 38px; width: auto; max-width: 100%; flex: none; }
+.admin-brand-sub { padding-left: 12px; border-left: 1px solid var(--line-strong); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #5a6882; white-space: nowrap; }
+.admin-nav { grid-area: nav; display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px; min-width: 0; margin-top: 8px; border-top: 1px solid #eef2f9; }
+.admin .admin-nav a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 46px;
+  padding: 0 12px;
+  color: #3d4b66;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 8px 8px 0 0;
+  white-space: nowrap;
+}
+.admin .admin-nav a:hover { color: #172033; background: #f4f7fc; }
+.admin .admin-nav a[aria-current="page"] { color: #1a4fc4; font-weight: 600; }
+/* The current section is marked by a bar sitting on the header's bottom border. */
+.admin .admin-nav a[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: #2364e8;
+}
+/* The signed-in person: name and role, Change password, Log out. Set apart from the sections by a divider. */
+.admin-account {
+  grid-area: account;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 14px;
+  min-width: 0;
+}
+.admin-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.admin-name { font-weight: 600; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-role { font-style: normal; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: #eef4ff; color: #204b9b; border: 1px solid #cfe0ff; border-radius: 999px; padding: 2px 9px; flex: none; }
+.admin-role-sales { background: #effaf3; color: #1b6b3a; border-color: #c4e8d1; }
+.admin-main { max-width: calc(var(--admin-width) + 2 * var(--admin-gutter)); margin: 0 auto; padding: 16px var(--admin-gutter) 64px; }
+.admin-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  margin: 0 0 18px;
+  box-shadow: var(--shadow-sm);
+}
+.admin label { display: block; font-weight: 600; font-size: 13.5px; color: var(--ink-2); margin: 10px 0 5px; }
+.admin-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid #d0d9e7;
+  border-radius: 10px;
+  font: inherit;
+  background: #fff;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.admin-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(35, 100, 232, 0.14); outline: none; }
+.admin-input:focus-visible, .admin-button:focus-visible, .admin a:focus-visible { outline: 3px solid rgba(35, 100, 232, 0.35); outline-offset: 2px; }
+.admin-input[aria-invalid="true"] { border-color: #c0392b; }
+.admin-days { width: 90px; }
+.admin-button {
+  display: inline-flex; align-items: center; gap: 6px; justify-content: center;
+  min-height: 40px; padding: 0 14px;
+  border: 1px solid #d0d9e7; border-radius: 10px; background: #fff; color: var(--brand-ink);
+  font: inherit; font-size: 14px; font-weight: 600; line-height: 1.25; text-decoration: none; text-align: center; cursor: pointer; white-space: nowrap; max-width: 100%;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.admin-button:hover:not(:disabled) { background: #eef4ff; }
+.admin-button:disabled { background: #f1f4f9; border-color: #dde3ec; color: #5f6b80; cursor: not-allowed; }
+.admin-button-primary { background: #2364e8; border-color: #2364e8; color: #fff; }
+.admin-button-primary:hover:not(:disabled) { background: #1e58d0; }
+.admin-button-primary:disabled { background: #dbe4f3; border-color: #dbe4f3; color: #4a5872; }
+.admin-button-danger { color: #a3271b; border-color: #e3b5b0; }
+.admin-button-danger:hover:not(:disabled) { background: #fdf0ee; }
+.admin-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.admin-between { justify-content: space-between; align-items: center; }
+.admin-grow { flex: 1 1 240px; }
+.admin-check { display: inline-flex !important; align-items: center; gap: 6px; font-weight: 500 !important; }
+.admin-muted { color: #5a6882; }
+.admin-error { color: #b0291c; margin: 6px 0 0; font-size: 14px; }
+.admin-notice { background: #eef4ff; color: #204b9b; padding: 8px 12px; border-radius: 8px; margin: 0; }
+.admin-tag { display: inline-block; font-size: 12px; font-weight: 600; background: var(--brand-soft); color: var(--brand-ink); border: 1px solid #d6e3fb; border-radius: 999px; padding: 2px 9px; vertical-align: middle; text-transform: capitalize; }
+/* School logo (admin): preview and upload */
+.admin-logo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; margin-top: 8px; }
+.admin-logo-slot { --brand-h: 56px; }
+.admin .admin-logo-row label.admin-button { margin: 0; }
+.admin-button.is-disabled { background: #f1f4f9; border-color: #dde3ec; color: #5f6b80; pointer-events: none; }
+/* The real file input stays focusable for keyboard users; its label is the visible button. */
+.admin-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.admin-file:focus-visible + .admin-button, .admin-logo-row label:has(+ .admin-file:focus-visible) { outline: 3px solid rgba(35, 100, 232, 0.35); outline-offset: 2px; }
+.admin-top { margin-top: 16px; }
+.admin-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 16px; }
+.admin-full { grid-column: 1 / -1; }
+.admin-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 20px; margin: 0 0 14px; }
+.admin-details dt { color: #5a6882; font-size: 13px; }
+.admin-details dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.admin-table-wrap { overflow-x: auto; }
+.admin-table-wrap { border: 1px solid var(--line); border-radius: var(--radius); }
+.admin-table { width: 100%; border-collapse: collapse; min-width: 520px; }
+.admin-table th, .admin-table td { text-align: left; padding: 11px 14px; border-bottom: 1px solid #edf1f7; vertical-align: middle; }
+.admin-table tbody tr:last-child th, .admin-table tbody tr:last-child td { border-bottom: 0; }
+.admin-table thead th { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; background: #f8fafd; }
+.admin-table tbody tr:hover { background: #fafcff; }
+.admin-table tbody th { font-weight: 600; }
+.admin-table a { font-weight: 600; text-decoration: none; }
+.admin-table a:hover { text-decoration: underline; }
+.admin-fresh { background: #eefaf1; border: 1px solid #b9e3c4; border-radius: 12px; padding: 14px; margin-bottom: 14px; display: grid; gap: 10px; }
+.admin-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 760px) {
+  .admin-name { max-width: 120px; }
+  .admin-account { gap: 6px 10px; }
+  .admin .admin-nav a { padding: 0 10px; }
+  .admin .admin-nav a[aria-current="page"]::after { left: 10px; right: 10px; }
+}
+/* Phones: logo and Log out on the first row; who is signed in and Change password on the second; then the sections.
+   The account block's children join the header grid directly (display: contents), so nothing is duplicated. */
+@media (max-width: 640px) {
+  .admin-header-bar { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand out" "who pw" "nav nav"; row-gap: 2px; padding-top: 8px; }
+  .admin-account { display: contents; }
+  .admin-account > .admin-who { grid-area: who; }
+  .admin-account > .admin-account-link { grid-area: pw; justify-self: end; }
+  .admin-account > .admin-button { grid-area: out; justify-self: end; min-height: 44px; }
+  .admin-brand-logo { height: 32px; }
+  .admin-nav { margin-top: 4px; gap: 0; }
+  .admin .admin-nav a { flex: 1 1 auto; justify-content: center; padding: 0 8px; }
+}
+@media (max-width: 480px) {
+  .admin h1 { font-size: 22px; }
+  .admin-header { position: static; }
+  .admin-brand-sub { display: none; }
+  .admin .admin-nav a svg { display: none; } /* words only, so all of Admin's four sections fit on one row */
+}
+/* Touch screens: every header and back control is a comfortable target. */
+@media (max-width: 899px), (pointer: coarse) {
+  .admin .admin-account-link, .admin-back { min-height: 44px; }
+  .admin-table tbody th a { display: inline-flex; align-items: center; min-height: 44px; }
+  .admin-check { min-height: 44px; }
+}
+.admin-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--brand); }
+/* Tables on phones: each row becomes a card of labelled values instead of a table cut off at the screen edge. The
+   headings stay in the markup for screen readers; each cell shows its column name from data-label. */
+@media (max-width: 640px) {
+  .admin-table-wrap:has(.admin-table-stack) { border: 0; overflow: visible; }
+  .admin-table-stack { min-width: 0; }
+  .admin-table-stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .admin-table-stack, .admin-table-stack tbody, .admin-table-stack tr, .admin-table-stack th, .admin-table-stack td { display: block; }
+  .admin-table-stack tbody { display: grid; gap: 10px; }
+  .admin-table-stack tr { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--surface); }
+  .admin-table-stack tbody tr:hover { background: var(--surface); }
+  .admin-table-stack tbody th { padding: 0 0 6px; border: 0; font-size: 15.5px; }
+  .admin-table-stack td { display: grid; grid-template-columns: minmax(96px, 38%) minmax(0, 1fr); gap: 10px; align-items: center; padding: 7px 0; border: 0; border-top: 1px solid #edf1f7; }
+  .admin-table-stack tbody th a { display: inline-flex; align-items: center; min-height: 44px; }
+  .admin-table-stack td::before { content: attr(data-label); color: var(--muted); font-size: 13px; font-weight: 600; }
+  .admin-table-stack td > * { justify-self: start; }
+}
+
+/* Trip-link registrations: which school the parent is registering for. */
+
+/* Manage staff */
+.admin-success { color: #1b6b3a; margin: 6px 0 10px; font-size: 14px; font-weight: 600; }
+.admin-tag-off { background: #f3f4f6; color: #4b5563; }
+.admin-break { overflow-wrap: anywhere; }
+
+/* Staff sign-in screens reuse the portal design; this is the only addition. Plus the account link in the top bar. */
+.staff-caption { margin: 4px 0 0; text-align: center; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #5a6882; }
+.admin .admin-account-link { display: inline-flex; align-items: center; gap: 6px; color: #3d4b66; text-decoration: none; font-size: 14px; padding: 6px 8px; border-radius: 8px; white-space: nowrap; }
+.admin .admin-account-link:hover { color: #172033; background: #f4f7fc; }
+.admin .admin-account-link[aria-current="page"] { color: #1a4fc4; font-weight: 600; }
+
+/* A back arrow at the top of an admin page. */
+.admin-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 4px 2px; margin-top: 8px; color: #1a4fc4; font: inherit; font-weight: 600; cursor: pointer; border-radius: 6px; }
+.admin-back:hover { text-decoration: underline; }
+.admin-back:focus-visible { outline: 3px solid rgba(35, 100, 232, 0.35); outline-offset: 2px; }
+
+/* Parent: the registrations list, status labels */
+.page-heading { margin: 0 0 18px; }
+.page-heading p { margin: 4px 0 0; }
+.muted { color: var(--muted); }
+.registrations-title { margin: 0; font-size: 26px; letter-spacing: -0.02em; color: var(--ink); }
+.registrations-empty { color: var(--muted); }
+.registrations-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.registration-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.registration-main { min-width: 0; flex: 1 1 240px; }
+.registration-trip { margin: 0; font-size: 16px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.registration-school { margin: 2px 0 0; color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.registration-status { margin: 8px 0 0; }
+.registration-action { min-width: 132px; margin-top: 0; text-align: center; }
+.status-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #f1f4f9; color: var(--muted); border: 1px solid var(--line); }
+.status-pill.success { background: var(--success-soft); color: var(--success); border-color: #cbe9d8; }
+.status-pill.progress { background: var(--brand-soft); color: var(--brand-ink); border-color: #d6e3fb; }
+
+/* Review: declaration and typed digital signature, right before the submit button */
+.acknowledgement { margin: 22px 0 4px; padding: 20px 22px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: #fafbfd; }
+.acknowledgement h3 { margin: 0 0 12px; font-size: 15px; color: var(--ink); }
+.declaration { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.declaration.has-error { border-color: #e2a8a3; background: #fffafa; }
+.declaration input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--brand); cursor: pointer; }
+.declaration input:focus-visible { outline: 3px solid rgba(35, 100, 232, 0.32); outline-offset: 2px; }
+.declaration label { color: var(--ink-2); font-size: 14px; line-height: 1.6; cursor: pointer; }
+.signature { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.signature-heading { display: flex; align-items: center; gap: 8px; }
+.signature-help { margin: -4px 0 14px; color: var(--muted); font-size: 13.5px; }
+.signature .input-wrap { max-width: 460px; background: var(--surface); }
+.signature-preview { max-width: 460px; margin-top: 14px; padding: 6px 4px 0; }
+/* The signature as typed: the portal's own plain sans-serif in BOLD, a little larger and darker than the text around
+   it, so it stands out without imitating handwriting (no cursive, script or italic face). Shown exactly as entered. */
+.signature-value { display: block; min-height: 34px; font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 700; font-style: normal; font-size: 20px; line-height: 1.5; letter-spacing: 0.01em; color: var(--ink); overflow-wrap: anywhere; }
+.signature-line { display: block; height: 1px; background: var(--line-strong); }
+.signature-date { margin: 10px 0 0; color: var(--muted); font-size: 13.5px; }
+.signature-date strong { color: var(--ink); font-weight: 600; }
+.signature-note { margin: 8px 0 0; color: var(--subtle); font-size: 12.5px; line-height: 1.5; max-width: 70ch; }
+.submit-button { width: auto; min-width: 220px; padding: 0 26px; }
+
+/* After submission: confirmation and details */
+.confirmation { max-width: 860px; margin: 0 auto; display: grid; gap: 16px; }
+.confirmation-hero { display: flex; gap: 16px; align-items: flex-start; padding: 22px 24px; border: 1px solid #cbe9d8; border-radius: var(--radius-lg); background: var(--success-soft); }
+.confirmation-icon { flex: none; color: var(--success); margin-top: 2px; }
+.confirmation-title { outline: none; margin: 0; font-size: 24px; letter-spacing: -0.02em; color: var(--ink); }
+.confirmation-lead { margin: 6px 0 0; color: #33405a; font-size: 14.5px; line-height: 1.6; }
+.confirmation-card { padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.confirmation-card h2 { margin: 0 0 14px; font-size: 17px; color: var(--ink); }
+.detail-grid { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 24px; }
+.detail-grid dt { color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.detail-grid dd { margin: 4px 0 0; color: var(--ink); font-size: 15px; overflow-wrap: anywhere; }
+.answers summary { cursor: pointer; font-weight: 600; color: var(--ink); font-size: 15px; border-radius: 6px; }
+.answers summary:focus-visible { outline: 3px solid rgba(35, 100, 232, 0.32); outline-offset: 3px; }
+.answers .review-sections { margin-top: 16px; }
+/* (.detail-grid dd sets every answer to 15px; the signature is deliberately larger than the answers beside it) */
+.detail-grid dd.confirmation-signature { font-size: 19px; min-height: 0; }
+.confirmation-declaration { margin: 16px 0 0; padding: 12px 16px; border-left: 3px solid var(--line-strong); color: var(--ink-2); font-size: 14px; line-height: 1.6; background: #fafbfd; border-radius: 0 8px 8px 0; }
+/* After login with no trip or several trips: a calm notice, not a dashboard */
+.resume-notice { max-width: 680px; margin: 24px auto 0; padding: 28px 30px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); }
+.resume-notice h1 { margin: 0 0 8px; font-size: 22px; letter-spacing: -0.02em; color: var(--ink); }
+.resume-notice p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+.resume-icon { color: var(--brand); margin-bottom: 10px; }
+.text-link { color: var(--brand-ink); font-weight: 600; text-decoration: none; border-radius: 4px; }
+.text-link:hover { text-decoration: underline; }
+.text-link:focus-visible { outline: 3px solid rgba(35, 100, 232, 0.32); outline-offset: 2px; }
+@media (max-width: 480px) { .resume-notice { padding: 20px 16px; } }
+@media (max-width: 480px) { .registration-action { width: 100%; } .confirmation-hero, .confirmation-card, .acknowledgement { padding: 16px; } .submit-button { width: 100%; } }
+
+/* Show / hide password: an eye button at the end of every password field (parent and staff screens). */
+.password-toggle {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px; /* a comfortable touch target */
+  margin-right: 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--subtle);
+  cursor: pointer;
+}
+.password-toggle:hover { color: var(--ink-2); background: #f1f4f9; }
+.password-toggle:focus-visible { outline: 3px solid rgba(35, 100, 232, 0.32); outline-offset: 0; color: var(--ink-2); }
+.password-toggle svg { margin: 0 !important; }
+.admin-password { position: relative; display: flex; align-items: center; }
+.admin-password .admin-input { padding-right: 48px; }
+.admin-password .password-toggle { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); }
+
+/* Which portal am I in: links between the parent, sales and admin sign-in pages */
+.portal-switch { margin: 18px 0 0; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.portal-switch a, .resume-staff a { color: var(--brand-ink); font-weight: 600; }
+.resume-notice .resume-staff { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13.5px; }
+/* Staff portals: dashboard, page heads, access denied */
+.admin-page-head { margin: 12px 0 18px; }
+.admin-page-head h1 { margin: 0; }
+.admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 0 0 18px; }
+.admin .admin-stat { display: grid; gap: 4px; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); color: var(--ink); text-decoration: none; }
+.admin .admin-stat:hover { border-color: #c9d8f5; box-shadow: var(--shadow); }
+.admin-stat svg { color: var(--brand); }
+.admin-stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.admin-stat-label { color: var(--muted); font-size: 14px; }
+/* Create a tour: three steps, template cards, the finished tour. */
+.admin-stepper { display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; margin: 0 0 16px; padding: 0; color: var(--muted); font-size: 14px; }
+.admin-stepper li { display: inline-flex; align-items: center; gap: 8px; }
+.admin-stepper li[aria-current="step"] { color: var(--ink); font-weight: 700; }
+.admin-stepper-n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 700; }
+.admin-stepper li[aria-current="step"] .admin-stepper-n { background: var(--brand); border-color: var(--brand); color: #fff; }
+.admin-stepper li.is-done .admin-stepper-n { background: var(--brand-soft); border-color: #d6e3fb; color: var(--brand-ink); }
+.admin-template-grid { border: 0; margin: 14px 0 18px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 560px) { .admin-template-grid { grid-template-columns: 1fr; } }
+.admin-actions { margin-top: 14px; }
+.admin h2[tabindex="-1"]:focus { outline: none; }
+.admin-template-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 6px; }
+.admin .admin-template { display: grid; gap: 4px; margin: 0; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); cursor: pointer; font-weight: 400; color: var(--ink); position: relative; }
+.admin .admin-template:hover { border-color: #c9d8f5; box-shadow: var(--shadow-sm); }
+.admin .admin-template.is-selected { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 3px rgba(35, 100, 232, 0.14); }
+.admin-template input { position: absolute; top: 14px; right: 14px; width: 18px; height: 18px; accent-color: var(--brand); }
+.admin-template:focus-within { outline: 3px solid rgba(35, 100, 232, 0.35); outline-offset: 2px; }
+.admin-template-name { font-weight: 700; font-size: 16px; padding-right: 28px; }
+.admin-template-desc { font-size: 13.5px; }
+.admin-more { margin-top: 10px; }
+.admin-more summary { cursor: pointer; font-weight: 600; color: var(--brand-ink); padding: 6px 0; }
+.admin-created h2 { display: flex; align-items: center; gap: 8px; color: #1b6b3a; }
+.admin-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 20px; margin: 0 0 16px; }
+.admin-summary dt { color: #5a6882; font-size: 13px; }
+.admin-summary dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .admin-created .admin-row > .admin-button { width: 100%; justify-content: center; } }
+.admin-steps { margin: 0; padding-left: 22px; list-style: decimal; line-height: 1.8; }
+.admin-steps li { padding-left: 4px; }
+.admin-steps li::marker { color: var(--brand); font-weight: 700; }
+.admin-denied { max-width: 560px; margin: 40px auto; text-align: center; display: grid; justify-items: center; gap: 10px; }
+.admin-denied svg { color: var(--danger); }
+.admin-portal-sales .admin-brand-sub { color: var(--success); }
+
+@media (max-width: 480px) {
+  .portal-brands { --brand-h: 28px; }
+  .join-page .portal-brands { --brand-h: 40px; }
+}
+
+
+/* ==========================================
+   PARENT DASHBOARD (after the registration is submitted)
+========================================== */
+.dashboard-shell { max-width: 1280px; }
+.dashboard {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  padding-top: 24px;
+}
+.dashboard-bar,
+.dashboard-backdrop { display: none; }
+.dashboard-sidebar {
+  position: sticky;
+  top: 16px;
+  padding: 12px;
+  border: 1px solid #e3e9f2;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(22, 46, 85, 0.06);
+}
+.dashboard-nav ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.dashboard-nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 10px;
+  color: #3a475d;
+  font-weight: 600;
+  text-decoration: none;
+}
+.dashboard-nav a svg { flex: none; color: #5b6b86; }
+.dashboard-nav a:hover { background: #f1f5fb; color: #17243a; }
+.dashboard-nav a[aria-current="page"] { background: #e9f0fe; color: #173a82; box-shadow: inset 3px 0 0 #2364e8; }
+.dashboard-nav a[aria-current="page"] svg { color: #2364e8; }
+.dashboard-nav a:focus-visible,
+.dashboard-menu-button:focus-visible { outline: 3px solid rgba(35, 100, 232, 0.32); outline-offset: 2px; }
+.dashboard-main { display: grid; gap: 20px; min-width: 0; }
+.dashboard-section { display: grid; gap: 20px; min-width: 0; }
+.dashboard-title { margin: 0; font-size: 1.6rem; line-height: 1.2; color: #17243a; }
+.dashboard-title:focus { outline: none; }
+.dashboard-placeholder {
+  margin: 0;
+  padding: 28px 24px;
+  border: 1px dashed #c9d3e2;
+  border-radius: 14px;
+  background: #fff;
+  color: #5b6577;
+  font-size: 1.02rem;
+}
+.dashboard-main .confirmation-hero,
+.dashboard-main .confirmation-card { margin: 0; }
+
+/* The PDF panel at the end of Personal Details */
+.pdf-card { display: grid; gap: 10px; justify-items: start; }
+.pdf-card h2, .pdf-card .muted { margin: 0; }
+.pdf-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: auto; min-height: 46px; margin-top: 4px; padding: 0 22px; }
+.pdf-status { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 0.92rem; color: #1b2333; }
+.pdf-card .status-message { width: 100%; }
+
+/* Tablets and phones: the sidebar becomes a drawer opened by the Menu button. */
+@media (max-width: 899px) {
+  .dashboard { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-top: 16px; }
+  .dashboard-bar { display: flex; align-items: center; gap: 12px; }
+  .dashboard-menu-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid #d3dbe8;
+    border-radius: 10px;
+    background: #fff;
+    color: #173a82;
+    font-weight: 600;
+  }
+  .dashboard-bar-title { color: #3a475d; font-weight: 600; }
+  .dashboard-sidebar {
+    position: fixed;
+    z-index: 60;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(300px, 86vw);
+    padding: 20px 12px;
+    overflow-y: auto;
+    border-radius: 0 16px 16px 0;
+    transform: translateX(-105%);
+    visibility: hidden; /* closed: not reachable by keyboard or screen reader */
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+  }
+  .dashboard-sidebar.is-open { transform: none; visibility: visible; transition: transform 0.2s ease; }
+  .dashboard-backdrop.is-open { display: block; position: fixed; z-index: 50; inset: 0; background: rgba(15, 23, 42, 0.45); }
+  .dashboard-title { font-size: 1.35rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-sidebar, .dashboard-sidebar.is-open { transition: none; }
+}
+
+/* ==========================================
+   LIVE TRACKING (dashboard section and the staff trip page)
+========================================== */
+.live-trip { margin: -6px 0 16px; color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.live-trip strong { color: var(--ink-2); font-weight: 600; }
+.live-loading { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.live-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; margin: 0 0 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 14px; line-height: 1.5; }
+.live-status-live { border-color: #cbe9d8; background: var(--success-soft); }
+.live-status-stale { border-color: #f1d9a6; background: #fff8e8; }
+.live-status-text { flex: 1 1 240px; color: var(--ink-2); }
+.live-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; border: 1px solid var(--line); background: #f1f4f9; color: var(--muted); white-space: nowrap; }
+.live-pill-live { background: #e3f5ea; color: #1d6b43; border-color: #bfe3cd; }
+.live-pill-stale { background: #fdf0d2; color: #8a5a00; border-color: #efd28e; }
+.live-pill-info { background: var(--brand-soft); color: var(--brand-ink); border-color: #d6e3fb; }
+.live-pill-dot { width: 8px; height: 8px; border-radius: 50%; background: #23a35f; box-shadow: 0 0 0 3px rgba(35, 163, 95, 0.2); }
+.live-card { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); padding: 14px; }
+.live-facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0 0 12px; }
+.live-facts dt { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.live-facts dd { margin: 2px 0 0; color: var(--ink); font-weight: 600; }
+.live-ago { color: var(--muted); font-weight: 500; }
+.live-stale-note { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; color: #8a5a00; font-size: 13.5px; font-weight: 600; }
+/* The map: tall enough to read streets on a phone, never taller than most of the screen. */
+.live-map-wrap { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); }
+.live-map { width: 100%; height: clamp(300px, 58vh, 560px); background: #e8eef6; }
+.live-map-loading { display: grid; place-items: center; color: var(--muted); font-size: 14px; }
+.live-map .leaflet-control-attribution { font-size: 11.5px; }
+.live-map .leaflet-bar a, .live-map-recenter { width: 36px; height: 36px; line-height: 36px; }
+.live-map-recenter { display: grid; place-items: center; padding: 0; border: 2px solid rgba(0, 0, 0, 0.2); border-radius: 6px; background: #fff; color: #1a4fc4; cursor: pointer; background-clip: padding-box; }
+.live-map-recenter:hover { background: #f4f7fc; }
+.live-map-recenter:focus-visible, .live-map .leaflet-bar a:focus-visible { outline: 3px solid rgba(35, 100, 232, 0.45); outline-offset: 2px; }
+/* The team lead's marker: a blue dot with a soft pulse; grey and still when the position is out of date. */
+.live-map-marker { position: relative; display: block; width: 40px; height: 40px; }
+.live-map-dot { position: absolute; inset: 9px; border-radius: 50%; background: #2364e8; border: 3px solid #fff; box-shadow: 0 1px 6px rgba(20, 33, 58, 0.5); }
+.live-map .live-map-label { padding: 3px 8px; border: 0; border-radius: 6px; background: #14213a; color: #fff; font: 600 12.5px/1.3 Inter, system-ui, sans-serif; box-shadow: 0 2px 8px rgba(20, 33, 58, 0.3); }
+.live-map .live-map-label::before { border-top-color: #14213a; }
+.live-map-pulse { position: absolute; inset: 0; border-radius: 50%; background: rgba(35, 100, 232, 0.3); animation: live-pulse 2s ease-out infinite; }
+.live-map-marker.is-stale .live-map-dot { background: #8491a4; }
+.live-map-marker.is-stale .live-map-pulse { display: none; }
+@keyframes live-pulse { from { transform: scale(0.6); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .live-map-pulse { animation: none; opacity: 0.5; } }
+.live-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.live-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--brand-ink); font-weight: 600; font-size: 14px; text-decoration: none; }
+.live-link:hover { text-decoration: underline; }
+.live-refresh { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 12px 0 0; color: var(--muted); font-size: 13.5px; }
+.live-refresh .text-button { display: inline-flex; align-items: center; gap: 5px; }
+/* The team lead's panel */
+.live-lead { margin: 0 0 16px; padding: 16px 18px; border: 1px solid #d6e3fb; border-radius: var(--radius-lg); background: #f7faff; }
+.live-lead-title { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 17px; font-weight: 700; color: var(--ink); }
+.live-lead-text { margin: 0 0 12px; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+.live-lead-state { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 14px; color: var(--ink-2); }
+.live-lead-note { margin: 12px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.live-start, .live-stop { margin-top: 14px; }
+.live-stop { color: var(--danger); border-color: #efc4bf; background: #fff; }
+.live-stop:hover:not(:disabled) { background: var(--danger-soft); }
+@media (min-width: 640px) { .live-start, .live-stop { width: auto; padding: 0 22px; } }
+/* staff trip page */
+.admin-h2-icon { vertical-align: -3px; margin-right: 4px; color: var(--brand); }
+.admin-live-map { margin-top: 14px; }
+.admin-live-map .live-map { height: clamp(240px, 40vh, 380px); }
+
+/* Itinerary (staff portals) */
+.admin-itinerary { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.admin-itinerary > li { border: 1px solid var(--line); border-radius: var(--radius-lg, 12px); padding: 12px 14px; background: var(--surface); }
+.admin-itinerary-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.admin-itinerary-details { margin: 6px 0 0; white-space: pre-line; color: var(--muted, #475569); }
+.admin-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+@media (max-width: 480px) { .admin-itinerary-item .admin-button { width: 100%; justify-content: center; } }
+.admin-row > select.admin-input { width: auto; flex: 1 1 240px; max-width: 420px; }
+
+/* Participant itinerary (dashboard) */
+.itinerary-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; max-width: 760px; }
+.itinerary-item { border: 1px solid var(--line); border-radius: var(--radius-lg, 12px); padding: 14px 16px; background: var(--surface); }
+.itinerary-day { margin: 0; font-size: 1.05rem; }
+.itinerary-details { margin: 6px 0 0; white-space: pre-line; color: var(--muted, #475569); }

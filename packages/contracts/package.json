@@ -1,0 +1,19 @@
+{
+  "name": "@pp/contracts",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared, dependency-light definitions used by the API and every portal: the four registration variants and the stable registration record contract (ERP-ready JSON).",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./variants": "./src/variants.js",
+    "./registration": "./src/registration.js"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

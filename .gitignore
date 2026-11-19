@@ -38,3 +38,6 @@ npm-debug.log*
 
 # Claude Code local files
 .claude/
+
+# Local demo-only Vite config (never committed; was ignored via .git/info/exclude at the old path)
+vite.demo.config.js
