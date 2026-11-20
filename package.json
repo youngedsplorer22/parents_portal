@@ -13,7 +13,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm ci --include=dev && npm run build -w @pp/web-core",
+    "build": "npm install --include=dev && npm run build -w @pp/web-core",
     "start": "npm start -w @pp/api",
     "build:all-portals": "npm run build -w @pp/portal-domestic-paid -w @pp/portal-domestic-free -w @pp/portal-international-paid -w @pp/portal-international-free -w @pp/portal-staff && npm run check:bundles",
     "dev:backend": "npm run dev -w @pp/api",
