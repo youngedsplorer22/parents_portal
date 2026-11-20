@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "npm ci --include=dev && npm run build -w @pp/portal-international-free",
+    "watchPatterns": ["apps/portal-international-free/**", "apps/web-server/**", "packages/web-core/**", "packages/contracts/**", "package.json", "package-lock.json"]
+  },
+  "deploy": {
+    "startCommand": "PORTAL_ROLE=public STATIC_DIR=apps/portal-international-free/dist node apps/web-server/src/server.js",
+    "healthcheckPath": "/healthz",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5
+  }
+}
