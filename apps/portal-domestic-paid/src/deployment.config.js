@@ -19,6 +19,8 @@
 // stops working as soon as the previous trip is closed, even before this site is redeployed.
 // import abcJaipurLogo from "./school-logos/abc-school-jaipur.png";
 
+// Staging test configuration (dummy data only). Comment-only edit made to trigger a fresh staging deployment.
+
 export default {
   school: "staging-demo-school",
   branch: "noida",
