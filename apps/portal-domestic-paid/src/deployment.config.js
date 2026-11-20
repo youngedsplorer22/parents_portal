@@ -20,12 +20,12 @@
 // import abcJaipurLogo from "./school-logos/abc-school-jaipur.png";
 
 export default {
-  school: "",
-  branch: "",
-  trip: "",
-  schoolName: "",
-  tripTitle: "",
-  destination: "",
+  school: "staging-demo-school",
+  branch: "noida",
+  trip: "domestic-paid-staging-test-2027",
+  schoolName: "Staging Demo School",
+  tripTitle: "Domestic Paid Staging Test 2027",
+  destination: "Jaipur",
   logo: null,
   schoolLogos: {
     // "abc-school/jaipur": abcJaipurLogo,
