@@ -7,6 +7,12 @@
 //                       name ending _test) AND the development database parents_portal_dev, and never runs next to
 //                       TEST_DATABASE_URL.
 //
+//   staging             (--staging only) the ONE staging database, and nothing else: STAGING_DATABASE_URL, never DATABASE_URL. It
+//                       needs ALLOW_STAGING_DATABASE=true, STAGING_CONFIRM_DATABASE=railway, the exact host
+//                       postgres.railway.internal, the exact database name railway, and a Railway project id (RAILWAY_PROJECT_ID) equal to
+//                       STAGING_RAILWAY_PROJECT_ID. Production's variables
+//                       (ALLOW_PRODUCTION_DATABASE, MIGRATE_CONFIRM_DATABASE, OPS_CONFIRM_DATABASE, DATABASE_URL) never authorise it.
+//
 // Nothing here connects anywhere, and no error ever repeats the connection URL or its password.
 //
 // TLS to the database. The driver (pg 8) turns TLS on for sslmode allow/prefer/require/verify-ca/verify-full and for any
@@ -128,4 +134,48 @@ export function resolveDatabaseTarget(env = process.env) {
     }
   }
   return { ...target, production: true };
+}
+
+// The staging database. Railway's private DNS name is the same in every Railway project, so the host and database name
+// alone cannot tell staging from production. So the process must prove which Railway project it runs in: Railway sets
+// RAILWAY_PROJECT_ID itself, and STAGING_RAILWAY_PROJECT_ID (set by us, to the staging project's id) must equal it exactly.
+// Both are required; the project name is not used (names are not an identity).
+export const STAGING_HOST = "postgres.railway.internal";
+export const STAGING_DATABASE = "railway";
+
+/**
+ * The staging database, from STAGING_DATABASE_URL only: { host, database, connectionString, staging: true }.
+ * Pure: reads `env`, connects to nothing, and no message repeats the URL, user name, password or host.
+ * It never looks at DATABASE_URL, TEST_DATABASE_URL, NODE_ENV or any production variable.
+ */
+export function resolveStagingTarget(env = process.env) {
+  if (env.ALLOW_STAGING_DATABASE !== "true") throw new DatabaseTargetError('staging needs ALLOW_STAGING_DATABASE to be exactly "true"');
+  if (env.STAGING_CONFIRM_DATABASE !== STAGING_DATABASE) {
+    throw new DatabaseTargetError(`staging needs STAGING_CONFIRM_DATABASE to be set to the staging database name ("${STAGING_DATABASE}")`);
+  }
+  if (env.PGSSLMODE) throw new DatabaseTargetError("PGSSLMODE must not be set for staging: put the TLS setting in STAGING_DATABASE_URL");
+  if (env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+    throw new DatabaseTargetError("NODE_TLS_REJECT_UNAUTHORIZED=0 must not be set for staging: it turns off certificate checking for every TLS connection");
+  }
+  const target = parseDatabaseUrl(env.STAGING_DATABASE_URL, "STAGING_DATABASE_URL");
+  if (target.host !== STAGING_HOST) throw new DatabaseTargetError(`STAGING_DATABASE_URL must point at ${STAGING_HOST}`);
+  if (target.database !== STAGING_DATABASE) throw new DatabaseTargetError(`STAGING_DATABASE_URL must name the database "${STAGING_DATABASE}"`);
+  // Parsed once already by parseDatabaseUrl, so this cannot throw. The name must be spelled exactly (no %-escapes), and the
+  // port is PostgreSQL's own: another port on that host is some other service.
+  const parsed = new URL(target.connectionString);
+  if (parsed.pathname !== `/${STAGING_DATABASE}`) throw new DatabaseTargetError(`STAGING_DATABASE_URL must name the database "${STAGING_DATABASE}", spelled exactly`);
+  if (parsed.port !== "" && parsed.port !== "5432") throw new DatabaseTargetError("STAGING_DATABASE_URL must use port 5432 (or none)");
+  // Last, so every other refusal reads the same as before. Neither value is ever printed.
+  const expectedProject = env.STAGING_RAILWAY_PROJECT_ID;
+  const runtimeProject = env.RAILWAY_PROJECT_ID;
+  if (typeof expectedProject !== "string" || expectedProject === "") {
+    throw new DatabaseTargetError("staging needs STAGING_RAILWAY_PROJECT_ID, the staging Railway project's id (Project Settings in the Railway dashboard)");
+  }
+  if (typeof runtimeProject !== "string" || runtimeProject === "") {
+    throw new DatabaseTargetError("staging runs only inside Railway: RAILWAY_PROJECT_ID is not set in this process");
+  }
+  if (runtimeProject !== expectedProject) {
+    throw new DatabaseTargetError("this process is not in the staging Railway project (RAILWAY_PROJECT_ID does not match STAGING_RAILWAY_PROJECT_ID)");
+  }
+  return { host: target.host, database: target.database, connectionString: target.connectionString, staging: true };
 }

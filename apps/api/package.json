@@ -13,6 +13,7 @@
     "dev": "node --watch --env-file=.env src/server.js",
     "migrate": "node --env-file=.env src/db/migrate.js",
     "migrate:production": "node src/db/migrate.js --production",
+    "migrate:staging": "node src/db/migrate.js --staging",
     "test": "node --env-file=.env --test --test-concurrency=1 \"test/**/*.test.js\"",
     "staff": "node --env-file=.env scripts/staff.js",
     "mail:check": "node --env-file=.env scripts/smtp-check.js",

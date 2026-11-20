@@ -50,11 +50,12 @@ export const HELP = `Developer commands (npm run ops -- <command> ...)
     audit:list [--limit 50]
 
   Which database: see DEVELOPER-CLI.md. Without a flag it is your LOCAL development database. --test is the local test
-  database. A live database is refused unless you add --production and set the three safeguards described there.
+  database. --staging is the separate staging database (see DEVELOPER-CLI.md). A live database is refused unless you add
+  --production and set the three safeguards described there.
 `;
 
 const FLAGS_WITH_VALUE = new Set(["school", "branch", "title", "type", "payment", "year", "destination", "email", "name", "limit", "confirm"]);
-const FLAGS_BOOLEAN = new Set(["new-school", "apply", "test", "production"]);
+const FLAGS_BOOLEAN = new Set(["new-school", "apply", "test", "production", "staging"]);
 
 /** { command, flags, positional } from argv. Unknown flags are refused, so a typo never silently does something else. */
 export function parseArgs(argv) {

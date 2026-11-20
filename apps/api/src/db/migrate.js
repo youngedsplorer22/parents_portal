@@ -5,6 +5,8 @@
 //   node --env-file=.env src/db/migrate.js                 -> DATABASE_URL (local development database)
 //   node --env-file=.env src/db/migrate.js --test          -> TEST_DATABASE_URL (local test database)
 //   node src/db/migrate.js --production                    -> the production database (npm run migrate:production)
+//   node src/db/migrate.js --staging                       -> the staging database ONLY (npm run migrate:staging): STAGING_DATABASE_URL,
+//                                                             ALLOW_STAGING_DATABASE=true, STAGING_CONFIRM_DATABASE=railway
 //
 // A production run changes real data's schema, so it never happens by accident. All of these must hold, or it refuses:
 //   - the --production flag, and NODE_ENV=production;
@@ -18,7 +20,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
-import { parseDatabaseUrl, resolveDatabaseTarget } from "./target.js";
+import { parseDatabaseUrl, resolveDatabaseTarget, resolveStagingTarget } from "./target.js";
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations");
 // Arbitrary constant so concurrent runs of this script serialize.
@@ -31,7 +33,15 @@ const ADVISORY_LOCK_KEY = 727001;
 export function resolveTarget(argv = process.argv.slice(2), env = process.env) {
   const useTest = argv.includes("--test");
   const useProduction = argv.includes("--production");
+  const useStaging = argv.includes("--staging");
   if (useTest && useProduction) throw new Error("--test and --production cannot be combined");
+  if (useStaging && (useTest || useProduction)) throw new Error("--staging cannot be combined with --test or --production");
+
+  if (useStaging) {
+    // Its own variables and its own checks: no DATABASE_URL, no production opt-in, no MIGRATE_CONFIRM_DATABASE.
+    const target = resolveStagingTarget(env);
+    return { envName: "STAGING_DATABASE_URL", database: target.database, host: target.host, connectionString: target.connectionString, production: false, staging: true };
+  }
 
   if (useProduction) {
     if (env.NODE_ENV !== "production") throw new Error("--production requires NODE_ENV=production");
@@ -71,7 +81,7 @@ async function main() {
   const target = resolveTarget();
   const client = new pg.Client({ connectionString: target.connectionString });
   await client.connect();
-  console.log(`Connected to ${target.database} on ${target.host} (${target.production ? "PRODUCTION" : target.envName})`);
+  console.log(`Connected to ${target.database} on ${target.host} (${target.production ? "PRODUCTION" : target.staging ? "STAGING" : target.envName})`);
 
   try {
     await client.query("SELECT pg_advisory_lock($1)", [ADVISORY_LOCK_KEY]);

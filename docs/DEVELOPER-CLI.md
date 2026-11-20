@@ -24,6 +24,7 @@ The tool picks the database for you and **refuses anything that is not your own 
 |---|---|---|
 | `npm run ops -- trip:list` | your local development database (`parents_portal_dev`) | yes. If `DATABASE_URL` points anywhere else, it stops. |
 | `npm run ops -- trip:list --test` | the local test database (`parents_portal_test`) | yes |
+| `... --staging` | the separate staging database only | refused unless the staging safeguards below are in place |
 | `... --production` | the live company database | refused unless **all four** of the safeguards below are in place |
 
 **Safeguards for the live database.** The command is refused unless:
@@ -53,6 +54,25 @@ NODE_ENV=production ALLOW_PRODUCTION_DATABASE=true OPS_CONFIRM_DATABASE=<exact d
 - The database address rules in `DEPLOYMENT.md` (Railway foundation, Database TLS) apply here too: for example the live address may not be a test or development database, and `TEST_DATABASE_URL` must not be set.
 - Never print, echo or paste `DATABASE_URL` or any other secret: not in a terminal, a log, a ticket or a chat. The script prints only the database name, host and which variable it came from.
 - **Not verified:** that a Railway shell makes these variables available to this process, and how you open such a shell. This repository does not say. Check it in a staging environment first, with a read-only command such as `portal:status`.
+
+### Running a command against the staging database
+
+Staging is a separate Railway project (`parents-portal-staging`) with its own PostgreSQL. `--staging` is its own mode: it reads **only** `STAGING_DATABASE_URL`. It never reads `DATABASE_URL`, `TEST_DATABASE_URL` or your `.env`, and `ALLOW_PRODUCTION_DATABASE`, `MIGRATE_CONFIRM_DATABASE` and `OPS_CONFIRM_DATABASE` do not authorise it. It is refused unless **all** of these are true:
+1. you typed `--staging` (and not `--production` or `--test` with it),
+2. `STAGING_DATABASE_URL` is set, and is exactly `postgresql://...@postgres.railway.internal:5432/railway` (host `postgres.railway.internal`, port 5432 or none, database `railway` spelled exactly; no `?host=` style options, and `sslmode`, if present, is `disable` or `verify-full`),
+3. `ALLOW_STAGING_DATABASE=true`,
+4. `STAGING_CONFIRM_DATABASE=railway`,
+5. the process proves it is in the staging Railway project: Railway sets `RAILWAY_PROJECT_ID` itself, and `STAGING_RAILWAY_PROJECT_ID` (which you set to the staging project's id) must be present and exactly equal to it. Both are required; a missing or different value is refused, and the project *name* is never used. `postgres.railway.internal` and `railway` are the same names in the production project, so this check, and keeping the `STAGING_*` variables out of the production project, are what keep staging and production apart.
+
+Set these on the staging project's `api` service only (never in the production project, never in `.env`): `STAGING_DATABASE_URL` as a Railway reference to the **staging** Postgres `DATABASE_URL` (the private one, not `DATABASE_PUBLIC_URL`), `ALLOW_STAGING_DATABASE=true`, `STAGING_CONFIRM_DATABASE=railway`, `STAGING_RAILWAY_PROJECT_ID=<the staging project's id: Railway dashboard, staging project, Settings, General, Project ID>`. The private hostname works only inside Railway, so run the commands from a shell in the staging `api` service (`railway ssh`, with the Railway CLI linked to the staging project and its `api` service), from the `apps/api` directory. Nothing is loaded from a `.env` file there, so use `node` directly, not `npm run ops`:
+
+```
+node scripts/ops.js portal:status --staging          # read-only first
+node scripts/ops.js trip:create --school "Test School" --branch "Jaipur" --title "Jaipur Test" --type domestic --payment none --year 2027-28 --new-school --staging
+npm run migrate:staging                               # applies pending migrations to the staging database only
+```
+
+The first line printed is `Using THE STAGING DATABASE: railway on postgres.railway.internal (STAGING_DATABASE_URL).` Read it. Nothing is ever printed from the connection URL except the database name and host. Staging mode is for dummy data only.
 
 Commands that only read (`trip:list`, `portal:status`, `sales:list`, `sales:assignments`, `audit:list`) never change anything.
 

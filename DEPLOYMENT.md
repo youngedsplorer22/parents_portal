@@ -372,7 +372,9 @@ without it, and an unbound portal, or a portal whose bound trip is not open, nev
    run `trip:open` yet: a bound draft trip accepts no registration. Check with `portal:status`. Against the live database these commands
    need the four safeguards described in that document. `npm run ops` reads `apps/api/.env`, which does not exist on Railway; in a shell
    that already has the production variables, run `node scripts/ops.js <command> --production` from `apps/api` instead. This repository
-   does not say how you reach such a shell, so check that route in staging first. At this step also add the Sales people
+   does not say how you reach such a shell, so check that route in staging first. **In the staging project** use `--staging` instead of
+   `--production` (and `npm run migrate:staging` instead of `migrate:production`): it has its own variables (`STAGING_DATABASE_URL`,
+   `ALLOW_STAGING_DATABASE=true`, `STAGING_CONFIRM_DATABASE=railway`, `STAGING_RAILWAY_PROJECT_ID`) and never uses the production ones (`docs/DEVELOPER-CLI.md`). At this step also add the Sales people
    (`sales:allow`, `sales:assign`) and, if the database has any old admin accounts, remove them once (*Removing the old admin accounts*:
    dry run first, and only after step 3).
 6. **Prepare and deploy each portal service**, each with its own file in `railway/`: its `src/deployment.config.js` must name the trip you

@@ -7,6 +7,9 @@
 //   - no flag        your LOCAL development database. DATABASE_URL must be on this computer and the database must be named
 //                    parents_portal_dev. Anything else is refused.
 //   - --test         the local test database (TEST_DATABASE_URL, named parents_portal_test).
+//   - --staging      the staging database only (STAGING_DATABASE_URL; needs ALLOW_STAGING_DATABASE=true and
+//                    STAGING_CONFIRM_DATABASE=railway; host postgres.railway.internal, database railway; and RAILWAY_PROJECT_ID equal to
+//                    STAGING_RAILWAY_PROJECT_ID). Never DATABASE_URL.
 //   - --production   a live database. Refused unless ALL of these are true: you also set NODE_ENV=production,
 //                    ALLOW_PRODUCTION_DATABASE=true and OPS_CONFIRM_DATABASE to the exact name of that database.
 // It prints the database it is about to use before it does anything, so you can stop (Ctrl-C) if it is the wrong one.
@@ -32,11 +35,11 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     return;
   }
   const target = chooseTarget(argv, env);
-  const where = target.production ? "THE LIVE (PRODUCTION) DATABASE" : "a local database";
+  const where = target.production ? "THE LIVE (PRODUCTION) DATABASE" : target.staging ? "THE STAGING DATABASE" : "a local database";
   console.log(`Using ${where}: ${target.database} on ${target.host} (${target.envName}).`);
   const db = new pg.Pool({ connectionString: target.connectionString, max: 2 });
   try {
-    await createOps({ db, env, user: os.userInfo().username }).run(argv.filter((a) => a !== "--test" && a !== "--production"), console.log, { databaseName: target.database });
+    await createOps({ db, env, user: os.userInfo().username }).run(argv.filter((a) => a !== "--test" && a !== "--production" && a !== "--staging"), console.log, { databaseName: target.database });
   } finally {
     await db.end();
   }
