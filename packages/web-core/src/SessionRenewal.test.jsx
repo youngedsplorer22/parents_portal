@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App.jsx";
 import AppRoutes from "./AppRoutes.jsx";
 import OnboardingFlow from "./components/onboarding/OnboardingFlow.jsx";
@@ -9,6 +9,10 @@ import { downloads } from "./test/downloads.js";
 import { createFakeAdmin } from "./test/fakeAdmin.js";
 import { FAKE_PDF, FAKE_REFERENCE, createFakeBackend } from "./test/fakeBackend.js";
 import { storageIsEmpty } from "./test/helpers.js";
+import { preloadRouteChunks } from "./test/routeChunks.js";
+
+// Load the lazy route chunks outside the timed assertions (see test/routeChunks.js).
+beforeAll(preloadRouteChunks, 60_000);
 
 // The access token lives 15 minutes; the fakes imitate it running out (`accessExpired`: protected requests answer 401
 // UNAUTHENTICATED until the page renews). These tests check what a parent or staff member actually experiences then.

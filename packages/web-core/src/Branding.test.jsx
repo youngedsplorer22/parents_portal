@@ -1,12 +1,16 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import AppRoutes from "./AppRoutes.jsx";
 import PortalHeader from "./components/PortalHeader.jsx";
 import { safeLogo } from "./api/onboardingApi.js";
 import { createFakeAdmin } from "./test/fakeAdmin.js";
 import { createFakeBackend } from "./test/fakeBackend.js";
 import { reply } from "./test/helpers.js";
+import { preloadRouteChunks } from "./test/routeChunks.js";
+
+// Load the lazy route chunks outside the timed assertions (see test/routeChunks.js).
+beforeAll(preloadRouteChunks, 60_000);
 
 afterEach(() => vi.unstubAllGlobals());
 const at = (path) => render(<MemoryRouter initialEntries={[path]}><AppRoutes /></MemoryRouter>);

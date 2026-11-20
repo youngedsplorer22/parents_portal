@@ -1,11 +1,15 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import AppRoutes from "./AppRoutes.jsx";
 import { createFakeAdmin } from "./test/fakeAdmin.js";
 import { createFakeBackend } from "./test/fakeBackend.js";
 import { reply, storageIsEmpty } from "./test/helpers.js";
+import { preloadRouteChunks } from "./test/routeChunks.js";
+
+// Load the lazy route chunks outside the timed assertions (see test/routeChunks.js).
+beforeAll(preloadRouteChunks, 60_000);
 
 let user;
 beforeEach(() => {

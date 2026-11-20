@@ -1,10 +1,14 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import AppRoutes from "../AppRoutes.jsx";
 import { createFakeAdmin } from "../test/fakeAdmin.js";
 import { createFakeBackend } from "../test/fakeBackend.js";
 import { reply } from "../test/helpers.js";
+import { preloadRouteChunks } from "../test/routeChunks.js";
+
+// Load the lazy route chunks outside the timed assertions (see test/routeChunks.js).
+beforeAll(preloadRouteChunks, 60_000);
 
 // A public portal is customised for ONE school and trip (its deployment configuration). Its link for any other school's trip,
 // an old school's included, must say "closed or unavailable" and show nothing of either school, whatever the server knows.

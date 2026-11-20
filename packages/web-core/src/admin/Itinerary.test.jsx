@@ -1,9 +1,13 @@
 import { configure, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import AppRoutes from "../AppRoutes.jsx";
 import { createFakeAdmin } from "../test/fakeAdmin.js";
+import { preloadRouteChunks } from "../test/routeChunks.js";
+
+// Load the lazy route chunks outside the timed assertions (see test/routeChunks.js).
+beforeAll(preloadRouteChunks, 60_000);
 
 // Sales are itinerary-only: they see the trips a developer assigned to them and add and edit itinerary items. There is no admin
 // portal. The server enforces all of it (see the API tests); these tests are about what a Sales person sees and sends.
