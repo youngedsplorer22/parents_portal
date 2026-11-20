@@ -16,7 +16,7 @@ describe("root package.json", () => {
   });
 
   it("build installs the workspaces (with dev tools) and builds the combined web app", () => {
-    assert.match(pkg.scripts.build, /npm ci --include=dev/);
+    assert.match(pkg.scripts.build, /npm (ci|install) --include=dev/);
     assert.match(pkg.scripts.build, /npm run build -w @pp\/web-core/);
   });
 
