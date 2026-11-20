@@ -379,7 +379,7 @@ describe("loadConfig: SMTP delivery", () => {
 // Railway: where the server listens, and which database a production process may use.
 const SMTP = { OTP_DELIVERY: "smtp", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587", SMTP_SECURE: "false", SMTP_USER: "u", SMTP_PASSWORD: "p", SMTP_FROM: "a@example.com" };
 // Production must say PORTAL_BINDING_REQUIRED=true and carry at least one portal secret (see "production and portal binding" below).
-const BINDING = { PORTAL_BINDING_REQUIRED: "true", PORTAL_PROXY_SECRET_DOMESTIC_NONE: "p".repeat(40) };
+const BINDING = { PORTAL_BINDING_REQUIRED: "true", PORTAL_PROXY_SECRET_DOMESTIC_NONE: "p".repeat(40), TRUST_PROXY_HOPS: "1" };
 const railway = (over = {}) => ({
   ...valid,
   ...SMTP,
@@ -545,6 +545,43 @@ describe("production and portal binding", () => {
         if (value === "true") env.PORTAL_PROXY_SECRET_DOMESTIC_NONE = "p".repeat(40);
         assert.equal(loadConfig(env).staff.requireBinding, value === "true", `${NODE_ENV}/${value}`);
       }
+    }
+  });
+});
+
+describe("production and TRUST_PROXY_HOPS", () => {
+  it("production refuses to start unless TRUST_PROXY_HOPS is set explicitly, and the message says what it is for", () => {
+    for (const missing of [undefined, ""]) {
+      assert.throws(() => loadConfig(railway({ TRUST_PROXY_HOPS: missing })), /NODE_ENV=production requires TRUST_PROXY_HOPS to be set explicitly/);
+    }
+  });
+
+  it("production refuses 0: behind the portal web servers every visitor would share one address for the per-IP limits", () => {
+    assert.throws(() => loadConfig(railway({ TRUST_PROXY_HOPS: "0" })), /TRUST_PROXY_HOPS=0 is not allowed in production/);
+  });
+
+  it("production refuses a value that is not a whole number from 1 to 5", () => {
+    for (const bad of ["-1", "6", "1.5", "one", "true", "1e1"]) assert.throws(() => loadConfig(railway({ TRUST_PROXY_HOPS: bad })), ConfigError, bad);
+  });
+
+  it("production accepts an explicit 1 (the private API behind the portal web servers) and uses it", () => {
+    assert.equal(loadConfig(railway({ TRUST_PROXY_HOPS: "1" })).trustProxyHops, 1);
+    assert.equal(loadConfig(railway({ TRUST_PROXY_HOPS: "2" })).trustProxyHops, 2, "a different chain is possible only by saying so explicitly");
+  });
+
+  it("development and test are unchanged: unset means 0, and 0 is fine", () => {
+    assert.equal(loadConfig({ ...valid, TRUST_PROXY_HOPS: undefined }).trustProxyHops, 0);
+    assert.equal(loadConfig({ ...valid, TRUST_PROXY_HOPS: "0" }).trustProxyHops, 0);
+    assert.equal(loadConfig({ ...valid, TRUST_PROXY_HOPS: "1" }).trustProxyHops, 1);
+    assert.equal(loadConfig({ ...valid, ...SMTP, NODE_ENV: "test", TRUST_PROXY_HOPS: undefined }).trustProxyHops, 0);
+  });
+
+  it("the error never prints a secret value", () => {
+    try {
+      loadConfig(railway({ TRUST_PROXY_HOPS: undefined }));
+      assert.fail("should refuse");
+    } catch (err) {
+      assert.doesNotMatch(String(err.message), /p{40}|db-pw-value/);
     }
   });
 });

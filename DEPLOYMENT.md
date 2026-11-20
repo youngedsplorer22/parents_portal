@@ -81,12 +81,34 @@ So any proxy in front of the backend must pass the browser's Host through unchan
   the connection address is used instead. All per-IP limits (OTP sends, password sign-in, refresh, public link lookups, mobile)
   read this one address. Production logs a warning when it is `0`. A value too high lets callers choose their own address; a value
   too low makes everyone share the proxy's address.
-  **The production value is not decided.** How many proxies sit between a visitor and the API on Railway, and whether Railway's edge
-  appends to or replaces a caller's `X-Forwarded-For`, has not been established: Railway's documentation does not say, and its
-  staff's answers disagree. Do not assume `0` or `1`. Leave the production value undecided until the isolated staging
-  verification in `docs/CLIENT-IP-STAGING-VERIFICATION.md` (a throwaway echo service, no production traffic) has been carried
-  out and has established the trusted proxy chain. Do not test client-IP handling by sending forged headers to a real
-  endpoint such as a sign-in route.
+  **Initial launch: the API is private, and its trust is fixed by design.** The API has no public domain. Only the four public portals
+  and the Sales portal reach it, over Railway's private network, and each of them sends the API exactly one validated address in
+  `X-Forwarded-For` (see the next bullet). So the API trusts exactly one hop, its own web server: **`TRUST_PROXY_HOPS=1` is
+  required in production** (the API refuses to start in production without it, and refuses `0`). Setting it is part of the private
+  design: it is only right while every request reaches the API through a portal web server. If the API ever gets a public domain
+  (for example for the mobile app), the value must be decided again, and that needs its own staging verification.
+- **`CLIENT_IP_SOURCE`** (each portal's web server, public and Sales; **required in production, no default**). It says how the web
+  server reads the visitor's address from what Railway's edge reported, and it is **not decided yet**: Railway's documentation does
+  not say how the edge fills `X-Forwarded-For` and `X-Real-IP`, and its staff's answers disagree. The three accepted values are
+  `xff:<n>` (the n-th entry from the right of `X-Forwarded-For`, n from 1 to 8), `x-real-ip`, and `peer` (the connecting address:
+  safe, but every visitor then shares one address for the per-IP limits). **Do not assume one.** Choose it only from the staging
+  verification in `docs/CLIENT-IP-STAGING-VERIFICATION.md`; that verification has not been done. The web server refuses to start in
+  production without a valid value. An address that is not exactly one valid IP falls back to the connecting address, never to
+  another entry. Do not test any of this by sending forged headers to a real endpoint such as a sign-in route.
+- **What a portal forwards.** A portal's web server forwards only the calls its own website makes, by exact method and path (public
+  portals: the parent calls; the Sales portal: Sales sign-in, password and itinerary). Everything else, including `/api/admin/*` on a
+  public portal, parent routes on the Sales portal, `/api/mobile/*` and `/api/health*` on any portal, the enrolment list
+  (`GET /api/enrolments`), discarding a draft (`DELETE /api/onboarding`) and any other method or address, is answered with a JSON 404
+  by the web server and never reaches the API. The mobile routes stay in the API for later. The full lists are in
+  `apps/web-server/src/api-policy.js`.
+- **Host header and request bodies (portal web servers).** A request must carry exactly one well-formed `Host` header (a host name,
+  IPv4 address or bracketed IPv6 address, with an optional port); a missing, empty, repeated, comma-containing or malformed one gets a
+  JSON 400 before anything is served or forwarded (`/healthz` alone answers whatever the `Host`). A request body larger than the
+  limit the API itself sets for that route (2 KB for emailed codes and enrolment, 4 KB for registration and sign-in, 1 KB for live
+  location, 8 KB for Sales, 64 KB for the registration form) is refused with a JSON 413 while it streams, so the API never receives
+  more than it would accept; a GET carries no body. The portal does not buffer bodies in memory. Refusals close the connection. The
+  web server also sets Node's header and request timeouts explicitly (60 s and 300 s), so a client that stalls mid-upload is cut off.
+  Not covered here: how many connections the Railway edge allows, which only the platform can limit.
 - **Registration links.** `npm run ops -- trip:create` prints a trip's link; the API builds it from the trip's tour template, so each
   link opens the portal that serves that template. Set one variable per portal, each to that portal's real public origin
   (`https://host`, nothing else: no path, no spaces; a trailing slash is dropped):
@@ -325,20 +347,20 @@ Variables, by service (names only; set them in the service's **Variables** tab, 
 - **API:** `NODE_ENV=production`, `DATABASE_URL` (reference the Postgres service's private URL), `ALLOW_PRODUCTION_DATABASE=true`,
   `OTP_HMAC_SECRET`, the `OTP_DELIVERY`/`SMTP_*` set above, `PORTAL_BINDING_REQUIRED=true`, one `PORTAL_PROXY_SECRET_<TEMPLATE>` for
   each public portal in use, the four `PUBLIC_BASE_URL_<TEMPLATE>`, plus the auth, staff and Google Drive variables already listed in
-  `apps/api/.env.example` and `GOOGLE_DRIVE_SETUP.md`. `PORT` is injected by Railway. **`TRUST_PROXY_HOPS` is deliberately not
-  listed: its production value is undecided until the staging verification in `docs/CLIENT-IP-STAGING-VERIFICATION.md` has
-  established the trusted proxy chain** (see *HTTPS and proxy*). Decide it before go-live.
+  `apps/api/.env.example` and `GOOGLE_DRIVE_SETUP.md`. `PORT` is injected by Railway; set it explicitly so the portals can name the API's
+  private address. `TRUST_PROXY_HOPS=1`: **required in production** for the private API (it refuses to start without it, and refuses 0).
+  Remove or do not generate the API's public domain: the initial launch has none.
 - **Each of the four public portals:** `PORTAL_PROXY_SECRET` (the same value as that portal's `PORTAL_PROXY_SECRET_<TEMPLATE>` on the
-  API, and different for every portal) and `API_URL` (the API's private address). `PORT` is injected by Railway.
-- **Sales portal:** `API_URL` only. It must not have a `PORTAL_PROXY_SECRET`, and it will refuse to start if it does.
+  API, and different for every portal), `API_URL` (the API's private address) and `CLIENT_IP_SOURCE` (required in production; its value comes from the staging verification and is not decided here). `PORT` is injected by Railway.
+- **Sales portal:** `API_URL` and `CLIENT_IP_SOURCE` (same rules). It must not have a `PORTAL_PROXY_SECRET`, and it will refuse to start if it does.
 
 ### First production deployment, in order
 Nothing accepts a registration before step 9. Keep `PORTAL_BINDING_REQUIRED=true` throughout: the API will not start in production
 without it, and an unbound portal, or a portal whose bound trip is not open, never accepts a registration.
 1. **Set the API service's variables** (names above; the values are yours and never go in the repository): every mandatory
    production variable, one `PORTAL_PROXY_SECRET_<TEMPLATE>` for each public portal in use (32 or more characters, all different), and
-   `PORTAL_BINDING_REQUIRED=true`. `TRUST_PROXY_HOPS` stays undecided here: its value is set only after the staging verification in
-   `docs/CLIENT-IP-STAGING-VERIFICATION.md` has established the trusted proxy chain, and that must be done before step 9.
+   `PORTAL_BINDING_REQUIRED=true` and `TRUST_PROXY_HOPS=1` (the private API; no public domain). Each portal's `CLIENT_IP_SOURCE` is decided
+   only by the staging verification in `docs/CLIENT-IP-STAGING-VERIFICATION.md` (step 6), and that must be done before step 9.
 2. **Deploy the API** with `railway/api.json`. The readiness check passes on an empty database (it only runs `SELECT 1`).
 3. **Back up the database and verify the backup** (it exists, is complete and can be restored) before anything changes the schema.
 4. **Apply the migrations**, only after step 3, once, from `railway ssh`: `npm run migrate:production -w @pp/api` with `MIGRATE_CONFIRM_DATABASE` set to the
@@ -355,7 +377,8 @@ without it, and an unbound portal, or a portal whose bound trip is not open, nev
    dry run first, and only after step 3).
 6. **Prepare and deploy each portal service**, each with its own file in `railway/`: its `src/deployment.config.js` must name the trip you
    bound in step 5 (*Preparing a portal for a school*), and its build must pass. Set `PORTAL_PROXY_SECRET` (the same value as that
-   portal's variable on the API) and `API_URL`; the Sales portal gets `API_URL` only.
+   portal's variable on the API), `API_URL` and `CLIENT_IP_SOURCE` (from the staging verification; a portal will not start without it);
+   the Sales portal gets `API_URL` and `CLIENT_IP_SOURCE` only.
    **Bind and deploy order.** In this first deployment no school is yet on any portal, so binding a draft trip (step 5) before its website is
    deployed (step 6) is safe: it accepts nothing until step 9. Binding after the website is deployed is equally valid. When a portal
    already serves a school and you are switching it, the order is different and matters: deploy the new website first, then
@@ -369,7 +392,7 @@ without it, and an unbound portal, or a portal whose bound trip is not open, nev
    Train / Flight Tickets, Live Tracking, Itinerary). This needs an open trip, so do it in a separate staging environment with its own
    database and secrets where you can. If it has to be done in production, open only that trip (step 9), do not share its link, register
    with an address you control, and treat that record as a real one.
-9. **Open each trip** (`trip:open`) only when steps 1 to 8 have passed and `TRUST_PROXY_HOPS` has been decided and applied. A trip's portal
+9. **Open each trip** (`trip:open`) only when steps 1 to 8 have passed and every portal's `CLIENT_IP_SOURCE` has been decided from the staging verification and applied. A trip's portal
    accepts registrations only from this moment, and only because the trip is bound to it and open. Then share the registration link.
 
 Password hashing uses about 128 MiB per concurrent hash; check the API service's memory limit against `PASSWORD_HASH_CONCURRENCY`.

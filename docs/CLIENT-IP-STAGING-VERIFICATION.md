@@ -72,3 +72,24 @@ Pass criteria for choosing a source:
   limits that live in the database, plus a coarse limit keyed on the immediate peer.
 
 Until this is measured, do not change `TRUST_PROXY_HOPS` and do not route the mobile app or the browser through a different path.
+
+## Implemented for the portal-only launch (in code; NOT verified on Railway)
+
+The initial launch has no public API domain, no mobile app and one traffic path: browser -> Railway edge -> portal web server ->
+private API. The code now follows the "send ONE value" option above:
+
+- `apps/web-server/src/client-ip.js` picks one address from what the edge reported, using the required setting
+  `CLIENT_IP_SOURCE` (`xff:<n>`, `x-real-ip` or `peer`; production refuses to start without it and nothing guesses it), validates it
+  with `net.isIP`, writes IPv4-mapped IPv6 as IPv4, sends it as the only `X-Forwarded-For`, and removes `Forwarded`,
+  `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Real-IP` and the other client-address headers. Anything that is not exactly one valid
+  address falls back to the connecting address.
+- The API trusts exactly one hop: `TRUST_PROXY_HOPS=1` is required in production (0 is refused). With one trusted hop Express takes
+  the rightmost entry, which is the one address the web server sent.
+- Residual risk, accepted for this launch: any other service in the same private network could send the API a header of its own.
+  Only the five frontend services and the database exist in this project. If that changes, add the shared-secret proof described above.
+
+What staging must still decide (the only Railway-dependent facts): which entry of what the edge reports is the visitor
+(`CLIENT_IP_SOURCE`), whether the edge's `X-Real-IP` can be used, and whether the connecting address is the edge's. Use the tests
+above on the PORTAL path (tests 1-5) with the real web server, a private echo API with `TRUST_PROXY_HOPS=1`, and confirm that the
+address the API sees is the real visitor, that a forged `X-Forwarded-For` or `X-Real-IP` changes nothing, and that per-IP limits count
+each visitor separately. Record the observed hop count and the chosen value here.

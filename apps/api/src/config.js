@@ -262,6 +262,17 @@ export function loadConfig(env = process.env) {
         : "NODE_ENV=production requires PORTAL_BINDING_REQUIRED=true (and the PORTAL_PROXY_SECRET_* variables). It is not set.",
     );
   }
+  // In production the API sits privately behind the portal web servers, which send it exactly one validated address, so it trusts
+  // exactly one hop. That value has to be said, not defaulted: left at 0 every visitor would share the web server's address for
+  // the per-IP limits. (Another value is right only if something else sits in front of the API; see docs/CLIENT-IP-STAGING-VERIFICATION.md.)
+  if (e.NODE_ENV === "production") {
+    if (env.TRUST_PROXY_HOPS === undefined || env.TRUST_PROXY_HOPS === "") {
+      throw new ConfigError("NODE_ENV=production requires TRUST_PROXY_HOPS to be set explicitly. For the API that sits privately behind the portal web servers it is 1 (see DEPLOYMENT.md). It is not set.");
+    }
+    if (e.TRUST_PROXY_HOPS === 0) {
+      throw new ConfigError("TRUST_PROXY_HOPS=0 is not allowed in production: behind the portal web servers every visitor would share one address for the per-IP limits. Set it to 1 for the private API behind the portal web servers (see DEPLOYMENT.md).");
+    }
+  }
   if (e.PORTAL_BINDING_REQUIRED === "true" && secretValues.length === 0) {
     throw new ConfigError(
       `PORTAL_BINDING_REQUIRED=true needs at least one portal secret (${TEMPLATE_KEYS.map(portalSecretEnvName).join(", ")}), or no portal could register anyone.`,
