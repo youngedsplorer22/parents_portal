@@ -18,13 +18,13 @@ const JoinPage = HAS_PARENT ? lazy(() => import("./join/JoinPage.jsx")) : null;
 const RetiredLink = HAS_PARENT ? lazy(() => import("./join/RetiredLink.jsx")) : null;
 
 /**
- * The URL map: three separate experiences.
+ * The URL map: three separate experiences, coexisting on the same host in every public portal build.
  *   Sales portal    /sales/login, /sales/dashboard, /sales/itineraries[/:tripId], /sales/password   (sales accounts only;
  *                   itinerary only, and only for trips a developer assigned to them). There is no admin portal.
  *   Parent portal   /parent and /parent/login (register or log in), /parent/registrations/:id (one of their own),
  *                   /join/:school/:branch/:trip[/continue] (a trip's registration link, shared by Sales)
- *   /               the Sales portal (redirects to /sales: its login, or its dashboard when signed in). The parent
- *                   app is never rendered at /, whatever parent session the browser has.
+ *   /               parent portal builds (and combined builds): the parent landing page. Staff-only build: redirects
+ *                   to /sales. When both run together the parent landing page is at / and /sales is a separate entry.
  *   anything else   "Page not found", with links to each portal
  * The canonical parent registration link stays /join/<school>/<branch>/<trip>: readable, token-free (the project lead's
  * decision) and already shared, so existing links keep working. Old addresses redirect: /registrations -> /parent,
@@ -53,16 +53,19 @@ function RegistrationRoute() {
  */
 export default function AppRoutes({ target = "all", deployment = null }) {
   // What this build can serve is limited by what it contains; the target narrows it further.
-  const staff = HAS_STAFF && (target === "all" || target === "staff");
+  // Staff routes are present in every build (HAS_STAFF is always true; see vite-config.js).
+  // The staff-only build has HAS_PARENT=false, so parent routes are absent there.
+  const staff = HAS_STAFF;
   const parent = HAS_PARENT && (target === "all" || target !== "staff");
   return (
     <PortalProvider value={{ target, deployment: readDeployment(deployment) }}>
       <Suspense fallback={null}>
       <Routes>
         {staff && <Route path="/sales/*" element={<StaffApp key="sales" portal="sales" />} />}
-        {/* The root is the Sales portal: /sales decides between its login and its dashboard. Parents never land here. */}
-        {staff && <Route path="/" element={<Navigate to="/sales" replace />} />}
-        {!staff && <Route path="/" element={<PublicLanding target={target} />} />}
+        {/* Root is the parent landing page when parent routes are present (every public portal). The staff-only build
+            has no parent routes, so / redirects to /sales there. Sales staff reach /sales/login from the parent page. */}
+        {staff && !parent && <Route path="/" element={<Navigate to="/sales" replace />} />}
+        {parent && <Route path="/" element={<PublicLanding target={target} />} />}
         {parent && <Route path="/parent" element={<App />} />}
         {parent && <Route path="/parent/login" element={<App initialTab="login" />} />}
         {parent && <Route path="/parent/registrations/:enrolmentId" element={<RegistrationRoute />} />}

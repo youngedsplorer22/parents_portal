@@ -3,8 +3,9 @@
 // answered here with a plain 404 and never reaches the API.
 //
 //   "public"  the four registration portals: the parent calls (join page, registration, emailed codes, sign-in, enrolment,
-//             the registration form, its PDF, live location, school logos).
-//   "staff"   the Sales portal: Sales sign-in and password, and the itinerary of assigned trips.
+//             the registration form, its PDF, live location, school logos) plus the Sales auth and itinerary routes so that
+//             Sales staff can sign in from the same URL as the parent registration flow (shared-URL deployment).
+//   "staff"   the Sales portal (staff-only build): Sales sign-in and password, and the itinerary of assigned trips.
 //
 // The API still checks every permission itself (sessions, ownership, portal key, Sales assignment). This is a second wall, so
 // a public website cannot be used to reach Sales routes or the mobile app's routes, even by someone who finds them.
@@ -57,6 +58,23 @@ const POLICIES = {
     rule("POST", "/api/live-location/location", {}, 1 * KB),
     rule("POST", "/api/live-location/stop", {}, 1 * KB),
     rule("GET", `/api/school-logos/${SLUG}/${SLUG}`, VERSION),
+    // Sales routes — forwarded by public portals so Sales staff can sign in from the same URL as the parent
+    // registration flow. Identical endpoints and body-size limits to the "staff" policy. Every /api/admin
+    // path NOT listed here (schools, trips management, staff management, audit, live-location, etc.) is blocked
+    // by this proxy and never reaches the API.
+    rule("POST", "/api/admin/auth/login", {}, 8 * KB),
+    rule("GET",  "/api/admin/auth/session"),
+    rule("POST", "/api/admin/auth/refresh", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/logout", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password/request", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password/resend", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password/verify", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password/confirm", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password", {}, 8 * KB),
+    rule("GET",  "/api/admin/itinerary/trips"),
+    rule("GET",  `/api/admin/trips/${UUID}/itinerary`),
+    rule("POST", `/api/admin/trips/${UUID}/itinerary`, {}, 8 * KB),
+    rule("PATCH",`/api/admin/trips/${UUID}/itinerary/${UUID}`, {}, 8 * KB),
   ],
   staff: [
     rule("POST", "/api/admin/auth/login", {}, 8 * KB),

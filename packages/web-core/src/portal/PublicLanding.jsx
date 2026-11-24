@@ -23,6 +23,7 @@ export default function PublicLanding({ target }) {
             <h1 className="join-school">{variant ? `${variant.label} registration` : "Registration"}</h1>
             <p className="join-caption">Open the trip registration link your school sent you to register.</p>
             <p className="portal-switch"><a href="/parent/login">Already registered? Log in</a></p>
+            <p className="portal-switch"><a href="/sales/login">Sales staff? Log in</a></p>
           </div>
         </div>
       </section>

@@ -270,7 +270,7 @@ describe("request bodies: the API's own limits, enforced before and while stream
   });
 
   it("a blocked request with a huge body is answered at once and the connection closed, without waiting for the upload", async () => {
-    const r = await exchange(p.port, `POST /api/admin/auth/login HTTP/1.1\r\nHost: portal.example\r\nContent-Length: 10000000000\r\n\r\n{"a":1}`, { wait: 700 });
+    const r = await exchange(p.port, `POST /api/admin/schools HTTP/1.1\r\nHost: portal.example\r\nContent-Length: 10000000000\r\n\r\n{"a":1}`, { wait: 700 });
     assert.equal(r.status, 404);
     assert.match(r.data, /connection: close/i);
     assert.equal(r.closed, true, "the server closed the connection instead of waiting for the rest of the body");

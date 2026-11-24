@@ -32,11 +32,15 @@ const info = (over = {}) => ({
 });
 
 describe("routing", () => {
-  it("'/' is the Sales portal (its log in when signed out); the parent portal is at /parent", async () => {
+  it("'/' is the parent landing with a Sales login link; /sales/login is the Sales sign-in; /parent is the parent portal", async () => {
     createFakeAdmin({ signedIn: false });
     const v = at("/");
-    expect(await screen.findByRole("heading", { name: "Sales log in" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Registration" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sales staff? Log in" })).toHaveAttribute("href", "/sales/login");
     v.unmount();
+    const w = at("/sales/login");
+    expect(await screen.findByRole("heading", { name: "Sales log in" })).toBeInTheDocument();
+    w.unmount();
     at("/parent");
     expect(await screen.findByRole("tab", { name: "Register" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Login" })).toBeInTheDocument();
@@ -892,13 +896,14 @@ describe("three separate experiences: role-aware sign-in and redirects", () => {
 describe("entry points: / is the Sales portal, /admin the Sales portal, parents only via their own routes and trip links", () => {
   const Here = () => <p data-testid="where">{useLocation().pathname}</p>;
   const visit = (path) => render(<MemoryRouter initialEntries={[path]}><AppRoutes /><Here /></MemoryRouter>);
+  const staffVisit = (path) => render(<MemoryRouter initialEntries={[path]}><AppRoutes target="staff" /><Here /></MemoryRouter>);
   const where = () => screen.getByTestId("where").textContent;
   const SUBMITTED = { tourType: "domestic", role: "student", status: "submitted", data: { fullName: "Asha Rao" }, currentSection: "review", version: 4, updatedAt: "2026-10-01T00:00:00.000Z", submittedAt: "2026-10-01T00:00:00.000Z" };
   const TRIP = { address: { school: "sunrise-academy", branch: "main", trip: "shimla" }, school: "Sunrise Academy", title: "Shimla", destination: "Himachal Pradesh", tourType: "domestic" };
 
   it("1. / in a fresh browser shows the Sales log in, never the parent form", async () => {
     const be = createFakeAdmin({ signedIn: false });
-    visit("/");
+    staffVisit("/");
     expect(await screen.findByRole("heading", { name: "Sales log in" })).toBeInTheDocument();
     expect(where()).toBe("/sales/login");
     expect(screen.queryByRole("tab", { name: "Register" })).not.toBeInTheDocument();
@@ -907,7 +912,7 @@ describe("entry points: / is the Sales portal, /admin the Sales portal, parents 
 
   it("2. / with a Sales session shows the Sales dashboard", async () => {
     createFakeAdmin({ role: "sales" });
-    visit("/");
+    staffVisit("/");
     expect(await screen.findByRole("heading", { name: "Sales dashboard" })).toBeInTheDocument();
     expect(where()).toBe("/sales/dashboard");
   });
@@ -915,7 +920,7 @@ describe("entry points: / is the Sales portal, /admin the Sales portal, parents 
   it("3. / with a parent session (and a submitted registration) shows the Sales log in, never the parent's registration", async () => {
     const be = createFakeBackend({ signedIn: true, form: SUBMITTED });
     be.queue("GET /api/admin/auth/session", apiError(401, "UNAUTHENTICATED")); // no staff session
-    visit("/");
+    staffVisit("/");
     expect(await screen.findByRole("heading", { name: "Sales log in" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Registration submitted" })).not.toBeInTheDocument();
     expect(screen.queryByText("Asha Rao")).not.toBeInTheDocument();

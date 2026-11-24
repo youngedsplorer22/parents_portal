@@ -17,7 +17,10 @@ export function createPortalConfig({ target, port = 5173, apiTarget = process.en
     define: {
       __PORTAL_TARGET__: JSON.stringify(target),
       // Literal booleans so the bundler drops the other side's code (see AppRoutes.jsx).
-      __HAS_STAFF__: String(target === "staff"),
+      // __HAS_STAFF__ is true for every build: public portals serve both the parent flow and the Sales
+      // login flow from the same URL, so every portal bundle must include the Sales routes.
+      // __HAS_PARENT__ is false only for the staff-only build, which never serves parent routes.
+      __HAS_STAFF__: "true",
       __HAS_PARENT__: String(target !== "staff"),
     },
     build: { sourcemap: false }, // no source maps in public output

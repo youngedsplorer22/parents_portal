@@ -301,7 +301,7 @@ describe("a public portal forwards only its own calls", () => {
   it("answers blocked calls with the same JSON 404 and the API never sees them", async () => {
     const before = p.upstream.calls.length;
     for (const [method, target] of [
-      ["POST", "/api/admin/auth/login"], ["GET", "/api/admin/itinerary/trips"], ["GET", `/api/admin/trips/${UUID}/live-location`],
+      ["GET", `/api/admin/trips/${UUID}/live-location`],
       ["POST", "/api/mobile/auth/login"], ["GET", "/api/mobile/me"], ["GET", "/api/health"], ["GET", "/api/health/ready"],
       ["GET", "/api/enrolments"], ["DELETE", "/api/onboarding"], ["DELETE", `/api/onboarding?enrolment=${UUID}`],
       ["POST", "/api/auth/password"], ["GET", "/api"], ["GET", "/api/"], ["GET", "/api/anything"], ["OPTIONS", "/api/auth/login"], ["HEAD", "/api/auth/session"],
@@ -342,6 +342,33 @@ describe("a public portal forwards only its own calls", () => {
     assert.match((await rawRequest(p.port, "GET", "/join/a/b/c")).body, /shell/);
     assert.equal((await rawRequest(p.port, "GET", "/healthz")).status, 200);
     assert.match((await rawRequest(p.port, "GET", "/apix")).body, /shell/, "a website path that merely starts with api is a page");
+  });
+
+  it("also forwards each Sales call (shared-URL deployment), with the portal key and one address", async () => {
+    for (const [method, target] of [
+      ["POST", "/api/admin/auth/login"], ["GET", "/api/admin/auth/session"],
+      ["GET", "/api/admin/itinerary/trips"], ["POST", `/api/admin/trips/${UUID}/itinerary`],
+      ["PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID}`],
+    ]) {
+      const res = await rawRequest(p.port, method, target, { headers: { "X-Forwarded-For": "6.6.6.6, 203.0.113.9", "X-Portal-Key": "forged" } });
+      assert.equal(res.status, 200, `${method} ${target}`);
+      const call = p.upstream.calls.at(-1);
+      assert.equal(call.url, target);
+      assert.equal(call.headers["x-portal-key"], SECRET_KEY, "public portal always adds its own key");
+      assert.equal(call.headers["x-forwarded-for"], "203.0.113.9");
+    }
+  });
+
+  it("admin-management paths are still blocked for a public portal, whatever the method", async () => {
+    const before = p.upstream.calls.length;
+    for (const [method, target] of [
+      ["GET", "/api/admin/schools"], ["POST", "/api/admin/staff"], ["GET", "/api/admin/audit"],
+      ["GET", "/api/admin/trips"], ["GET", `/api/admin/trips/${UUID}`],
+      ["GET", `/api/admin/trips/${UUID}/live-location`],
+    ]) {
+      assert.equal((await rawRequest(p.port, method, target)).status, 404, `${method} ${target}`);
+    }
+    assert.equal(p.upstream.calls.length, before, "nothing reached the API");
   });
 });
 

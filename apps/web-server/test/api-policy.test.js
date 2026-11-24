@@ -59,7 +59,7 @@ const STAFF = [
 
 const ok = (role, method, target) => checkApiTarget(role, method, target);
 
-describe("every call the frontends make is allowed, for its own portal role only", () => {
+describe("every call the frontends make is allowed", () => {
   for (const [method, target] of PUBLIC) {
     it(`public: ${method} ${target}`, () => {
       const r = ok("public", method, target);
@@ -73,7 +73,7 @@ describe("every call the frontends make is allowed, for its own portal role only
       const r = ok("staff", method, target);
       assert.equal(r.ok, true);
       assert.equal(r.target, target);
-      assert.equal(ok("public", method, target).ok, false, "a public portal never forwards a Sales route");
+      assert.equal(ok("public", method, target).ok, true, "a public portal also forwards Sales routes (shared-URL deployment)");
     });
   }
 });
@@ -113,22 +113,35 @@ describe("blocked on every portal", () => {
     }
   });
 
-  it("public portals forward no Sales route, and the Sales portal forwards no parent route, whatever the method", () => {
+  it("the Sales portal forwards no parent route, and public portals block wrong methods and admin-only paths, whatever the method", () => {
     for (const m of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
-      assert.equal(ok("public", m, "/api/admin/auth/login").ok, false);
-      assert.equal(ok("public", m, "/api/admin/itinerary/trips").ok, false);
+      // Admin paths the public allowlist never includes.
       assert.equal(ok("public", m, `/api/admin/trips/${UUID}/live-location`).ok, false);
       assert.equal(ok("public", m, `/api/admin/trips/${UUID}/live-location/team-lead`).ok, false);
+      // The Sales portal never forwards a parent route.
       assert.equal(ok("staff", m, "/api/auth/login").ok, false);
       assert.equal(ok("staff", m, "/api/registrations").ok, false);
       assert.equal(ok("staff", m, "/api/live-location/start").ok, false);
     }
+    // Wrong methods on paths the public policy allows.
+    assert.equal(ok("public", "GET",    "/api/admin/auth/login").ok, false);
+    assert.equal(ok("public", "PUT",    "/api/admin/auth/login").ok, false);
+    assert.equal(ok("public", "DELETE", "/api/admin/auth/login").ok, false);
+    assert.equal(ok("public", "POST",   "/api/admin/auth/session").ok, false);
+    assert.equal(ok("public", "POST",   "/api/admin/itinerary/trips").ok, false);
+    assert.equal(ok("public", "PATCH",  "/api/admin/itinerary/trips").ok, false);
+    assert.equal(ok("public", "PUT",    `/api/admin/trips/${UUID}/itinerary`).ok, false);
+    assert.equal(ok("public", "DELETE", `/api/admin/trips/${UUID}/itinerary`).ok, false);
+    assert.equal(ok("public", "GET",    `/api/admin/trips/${UUID}/itinerary/${UUID2}`).ok, false);
+    assert.equal(ok("public", "DELETE", `/api/admin/trips/${UUID}/itinerary/${UUID2}`).ok, false);
   });
 
   it("routes that exist on the API for other callers (staff schools/trips/audit, which the product no longer has) stay blocked", () => {
     for (const p of ["/api/admin/schools", "/api/admin/trips", `/api/admin/trips/${UUID}`, "/api/admin/staff", "/api/admin/audit", "/api/admin/portal-deployments/domestic_none"]) {
       assert.equal(ok("staff", "GET", p).ok, false, p);
       assert.equal(ok("staff", "POST", p).ok, false, p);
+      assert.equal(ok("public", "GET", p).ok, false, p);
+      assert.equal(ok("public", "POST", p).ok, false, p);
     }
   });
 
@@ -339,6 +352,51 @@ describe("looksLikeApi: what counts as an API request, in any spelling", () => {
   it("leaves the website's own paths alone", () => {
     for (const t of ["/", "/join/a/b/c", "/assets/a.js", "/apix", "/apiary/x", "/parent/login", "/sales/login", "/healthz", "/index.html"]) {
       assert.equal(looksLikeApi(t), false, t);
+    }
+  });
+});
+
+describe("Sales routes forwarded by public portals: access, body limits and method enforcement", () => {
+  for (const [method, target] of STAFF) {
+    it(`public allows ${method} ${target}`, () => {
+      const pub = ok("public", method, target);
+      const sta = ok("staff", method, target);
+      assert.equal(pub.ok, true);
+      assert.equal(pub.target, target);
+      assert.equal(pub.maxBody, sta.maxBody, "body limit matches the staff policy");
+    });
+  }
+
+  it("wrong methods on Sales paths are blocked for public portals", () => {
+    assert.equal(ok("public", "GET",    "/api/admin/auth/login").ok, false);
+    assert.equal(ok("public", "PUT",    "/api/admin/auth/login").ok, false);
+    assert.equal(ok("public", "DELETE", "/api/admin/auth/login").ok, false);
+    assert.equal(ok("public", "POST",   "/api/admin/auth/session").ok, false);
+    assert.equal(ok("public", "POST",   "/api/admin/itinerary/trips").ok, false);
+    assert.equal(ok("public", "PATCH",  "/api/admin/itinerary/trips").ok, false);
+    assert.equal(ok("public", "PUT",    `/api/admin/trips/${UUID}/itinerary`).ok, false);
+    assert.equal(ok("public", "DELETE", `/api/admin/trips/${UUID}/itinerary`).ok, false);
+    assert.equal(ok("public", "GET",    `/api/admin/trips/${UUID}/itinerary/${UUID2}`).ok, false);
+    assert.equal(ok("public", "DELETE", `/api/admin/trips/${UUID}/itinerary/${UUID2}`).ok, false);
+  });
+
+  it("invalid UUIDs in Sales paths are blocked for public portals", () => {
+    assert.equal(ok("public", "GET",   "/api/admin/trips/not-a-uuid/itinerary").ok, false);
+    assert.equal(ok("public", "POST",  "/api/admin/trips/not-a-uuid/itinerary").ok, false);
+    assert.equal(ok("public", "PATCH", `/api/admin/trips/${UUID}/itinerary/not-a-uuid`).ok, false);
+    assert.equal(ok("public", "PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID2}/extra`).ok, false);
+    assert.equal(ok("public", "GET",   `/api/admin/trips/${UUID}/itinerary/`).ok, false);
+  });
+
+  it("admin-management paths not in the public allowlist are blocked on every method", () => {
+    for (const m of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
+      assert.equal(ok("public", m, "/api/admin/schools").ok, false);
+      assert.equal(ok("public", m, "/api/admin/staff").ok, false);
+      assert.equal(ok("public", m, "/api/admin/audit").ok, false);
+      assert.equal(ok("public", m, "/api/admin/trips").ok, false);
+      assert.equal(ok("public", m, `/api/admin/trips/${UUID}`).ok, false);
+      assert.equal(ok("public", m, `/api/admin/trips/${UUID}/live-location`).ok, false);
+      assert.equal(ok("public", m, "/api/admin/portal-deployments/domestic_none").ok, false);
     }
   });
 });
