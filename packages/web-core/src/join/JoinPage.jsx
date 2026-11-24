@@ -43,6 +43,7 @@ export default function JoinPage() {
               <h1 className="join-school">This page can't be opened</h1>
               <div className="status-message error" role="alert"><span>{current.message}</span></div>
               <p className="join-caption">Already registered? <Link to="/parent/login">Log in to continue</Link></p>
+              <p className="portal-switch"><a href="/sales/login">Sales staff? Log in</a></p>
             </div>
           )}
           {info && (

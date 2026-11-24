@@ -22,6 +22,32 @@ const at = (path, deployment = DEPLOYMENT, target = "domestic-free") =>
   render(<MemoryRouter initialEntries={[path]}><AppRoutes target={target} deployment={deployment} /></MemoryRouter>);
 const CLOSED = /closed or no longer available/i;
 
+describe("Sales login link visibility", () => {
+  it("appears on the error state of the trip page when the server cannot load the trip", async () => {
+    createFakeAdmin({ joinResponses: { [KEY]: reply(500, { error: { code: "SERVER_ERROR", message: "fail" } }) } });
+    at(`/join/${KEY}`);
+    expect(await screen.findByText(/can't be opened/i)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Sales staff? Log in" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/sales/login");
+  });
+
+  it("parent login link still present in the error state alongside the Sales link", async () => {
+    createFakeAdmin({ joinResponses: { [KEY]: reply(500, { error: { code: "SERVER_ERROR", message: "fail" } }) } });
+    at(`/join/${KEY}`);
+    await screen.findByText(/can't be opened/i);
+    expect(screen.getByRole("link", { name: /Log in to continue/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sales staff? Log in" })).toBeInTheDocument();
+  });
+
+  it("Sales link absent on the happy-path trip page (no login links shown there)", async () => {
+    createFakeAdmin({ joinResponses: { [KEY]: reply(200, info("ABC School", "Jaipur")) } });
+    at(`/join/${KEY}`);
+    expect(await screen.findByRole("link", { name: "Register or log in" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sales staff? Log in" })).not.toBeInTheDocument();
+  });
+});
+
 describe("the trip this portal was customised for", () => {
   it("shows the developer's school name and trip title, with registration as the server says", async () => {
     createFakeAdmin({ joinResponses: { [KEY]: reply(200, info("ABC School (from the database)", "DB title")) } });
@@ -56,6 +82,15 @@ describe("an old school's link on a portal that now serves another school", () =
     expect(screen.queryByRole("link", { name: "Register or log in" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Register" })).not.toBeInTheDocument();
     expect(be.calls(/\/api\/join/)).toHaveLength(0);
+  });
+
+  it("the closed-link page shows the Sales staff login link", async () => {
+    createFakeAdmin({});
+    at(`/join/${OLD_KEY}`);
+    await screen.findByText(CLOSED);
+    const link = screen.getByRole("link", { name: "Sales staff? Log in" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/sales/login");
   });
 
   it("the continue page (register or log in for that trip) is refused the same way", async () => {
@@ -93,6 +128,23 @@ describe("a portal nobody has customised yet", () => {
     createFakeAdmin({});
     at("/", { ...DEPLOYMENT, schoolName: "" });
     expect(await screen.findByText(/isn't set up yet/i)).toBeInTheDocument();
+  });
+
+  it("the not-set-up page shows the Sales staff login link", async () => {
+    createFakeAdmin({});
+    at("/", null);
+    await screen.findByText(/isn't set up yet/i);
+    const link = screen.getByRole("link", { name: "Sales staff? Log in" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/sales/login");
+  });
+
+  it("the not-set-up page keeps the parent login link alongside the Sales link", async () => {
+    createFakeAdmin({});
+    at("/", null);
+    await screen.findByText(/isn't set up yet/i);
+    expect(screen.getByRole("link", { name: /Log in to continue/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sales staff? Log in" })).toBeInTheDocument();
   });
 });
 

@@ -15,6 +15,7 @@ export default function PortalNotice({ title, message }) {
             <h1 className="join-school">{title}</h1>
             <div className="status-message info" role="status"><span>{message}</span></div>
             <p className="join-caption">Already registered? <Link to="/parent/login">Log in to continue</Link></p>
+            <p className="portal-switch"><a href="/sales/login">Sales staff? Log in</a></p>
           </div>
         </div>
       </section>
