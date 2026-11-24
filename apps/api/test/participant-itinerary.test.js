@@ -15,7 +15,7 @@ const MISSING = "00000000-0000-4000-8000-000000000000";
 
 beforeEach(async () => {
   await resetTables(pool);
-  h = await startApp({ db: pool });
+  h = await startApp({ db: pool, staff: { deploymentTemplateKey: "domestic_none" } });
   admin = await h.staffUser({ email: "dev@example.com", role: "admin" });
   sales = await h.staffUser({ email: "sales@company.example", role: "sales" });
   const school = (await admin.as.post("/api/admin/schools", { name: "ABC School" })).body.school;
@@ -26,8 +26,8 @@ beforeEach(async () => {
     await admin.as.post(`/api/admin/trips/${t.id}/status`, { status: "active" });
     await admin.as.post(`/api/admin/trips/${t.id}/public-registration`, { enabled: true });
   }
-  const staffId = (await pool.query("SELECT id FROM staff_users WHERE email_normalized = 'sales@company.example'")).rows[0].id;
-  await admin.as.put(`/api/admin/trips/${tripA.id}/assignments/${staffId}`);
+  // Bind tripA as the deployment-configured trip for this portal (deployment key, not individual assignment, controls access)
+  await pool.query("INSERT INTO portal_deployments (template_key, trip_id) VALUES ('domestic_none', $1)", [tripA.id]);
 });
 afterEach(() => h.close());
 after(() => pool.end());

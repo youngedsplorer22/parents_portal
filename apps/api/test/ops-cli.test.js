@@ -138,7 +138,7 @@ describe("binding a trip to its portal", () => {
 describe("the Sales allowlist and assignments, end to end", () => {
   let h;
   beforeEach(async () => {
-    h = await startApp({ db: pool });
+    h = await startApp({ db: pool, staff: { deploymentTemplateKey: "domestic_none" } });
     await trip();
     await run("trip:create", "--school", "ABC School", "--branch", "Jaipur", "--title", "Goa 2027", "--type", "domestic", "--payment", "none", "--year", "2027-28");
   });
@@ -149,7 +149,7 @@ describe("the Sales allowlist and assignments, end to end", () => {
     assert.equal((await h.staffSetPassword("priya.sales@company.example", "a-strong-pass-123")).status, 200);
     const priya = await h.staffSignIn("priya.sales@company.example", "a-strong-pass-123");
     assert.equal(priya.res.status, 200);
-    assert.equal((await priya.as.get("/api/admin/itinerary/trips")).body.trips.length, 0, "no trip until one is assigned");
+    assert.equal((await priya.as.get("/api/admin/itinerary/trips")).body.trips.length, 0, "no trip until one is deployed for this portal");
     const other = await h.api.post("/api/admin/auth/login", { email: "someone.else@company.example", password: "a-strong-pass-123" });
     assert.equal(other.status, 401);
     await rejects("sales:allow", "--email", "priya.sales@company.example", "--name", "Again");
@@ -157,7 +157,7 @@ describe("the Sales allowlist and assignments, end to end", () => {
     assert.match(await run("sales:list"), /priya\.sales@company\.example\s+active\s+0 trip\(s\)/);
   });
 
-  it("many-to-many: one Sales person holds several trips, one trip has several Sales people; revoke takes effect at once", async () => {
+  it("assignments are recorded (many-to-many) but do not gate access; portal deployment controls what all Sales accounts see", async () => {
     for (const [e, n] of [["a@company.example", "A"], ["b@company.example", "B"]]) {
       await run("sales:allow", "--email", e, "--name", n);
       await h.staffSetPassword(e, "a-strong-pass-123");
@@ -168,16 +168,30 @@ describe("the Sales allowlist and assignments, end to end", () => {
     await run("sales:assign", "--email", "a@company.example", "abc-school/jaipur/goa-2027");
     await run("sales:assign", "--email", "b@company.example", WORDS);
     await run("sales:assign", "--email", "b@company.example", WORDS); // again: no error, no duplicate
-    assert.equal((await a.as.get("/api/admin/itinerary/trips")).body.trips.length, 2);
-    assert.equal((await b.as.get("/api/admin/itinerary/trips")).body.trips.length, 1);
-    const jaipur = (await a.as.get("/api/admin/itinerary/trips")).body.trips.find((t) => t.title === "Jaipur 2027");
+
+    // Assignments are recorded correctly in the DB (many-to-many still works for record-keeping)
+    const aId = (await pool.query("SELECT id FROM staff_users WHERE email_normalized = 'a@company.example'")).rows[0].id;
+    const bId = (await pool.query("SELECT id FROM staff_users WHERE email_normalized = 'b@company.example'")).rows[0].id;
+    assert.equal((await pool.query("SELECT count(*)::int n FROM staff_trip_assignments WHERE staff_id = $1", [aId])).rows[0].n, 2);
+    assert.equal((await pool.query("SELECT count(*)::int n FROM staff_trip_assignments WHERE staff_id = $1", [bId])).rows[0].n, 1, "no duplicate");
+
+    // Before portal:bind, no Sales user sees any trip (deployment, not assignment, controls access)
+    assert.equal((await a.as.get("/api/admin/itinerary/trips")).body.trips.length, 0);
+
+    // After portal:bind, ALL authenticated Sales accounts see the same deployed trip regardless of assignment
+    await run("portal:bind", WORDS);
+    assert.equal((await a.as.get("/api/admin/itinerary/trips")).body.trips.length, 1);
+    assert.equal((await b.as.get("/api/admin/itinerary/trips")).body.trips.length, 1, "all Sales see the same trip regardless of assignment");
+    const jaipur = (await a.as.get("/api/admin/itinerary/trips")).body.trips[0];
     assert.equal((await a.as.post(`/api/admin/trips/${jaipur.id}/itinerary`, { dayNumber: 1, title: "Arrive" })).status, 201);
     assert.equal((await b.as.get(`/api/admin/trips/${jaipur.id}/itinerary`)).body.items.length, 1, "both Sales people see the one itinerary");
     assert.match(await run("sales:assignments", WORDS), /a@company\.example[\s\S]*b@company\.example/);
+
+    // Revoke removes the assignment row but does not affect portal deployment access
     await run("sales:revoke", "--email", "a@company.example", WORDS);
-    assert.equal((await a.as.get(`/api/admin/trips/${jaipur.id}/itinerary`)).status, 403);
+    assert.equal((await pool.query("SELECT count(*)::int n FROM staff_trip_assignments WHERE staff_id = $1", [aId])).rows[0].n, 1, "one assignment row removed");
+    assert.equal((await a.as.get(`/api/admin/trips/${jaipur.id}/itinerary`)).status, 200, "portal access unaffected by revoke");
     assert.equal((await b.as.get(`/api/admin/trips/${jaipur.id}/itinerary`)).status, 200);
-    assert.equal((await a.as.get("/api/admin/itinerary/trips")).body.trips.length, 1, "their other trip is untouched");
   });
 
   it("assigning needs an allowlisted Sales address and a real trip; a disabled person cannot sign in", async () => {

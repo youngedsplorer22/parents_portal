@@ -14,7 +14,7 @@ let trip;
 
 beforeEach(async () => {
   await resetTables(pool);
-  h = await startApp({ db: pool });
+  h = await startApp({ db: pool, staff: { deploymentTemplateKey: "domestic_none" } });
   admin = await h.staffUser({ email: "admin@example.com", role: "admin" });
   school = (await admin.as.post("/api/admin/schools", { name: "Greenfield Public School" })).body.school;
   trip = (await admin.as.post(`/api/admin/schools/${school.id}/trips`, { title: "Trip 2026", tourType: "domestic", academicYear: "2026-27", destination: "Manali", paymentMode: "none" })).body.trip;
@@ -124,23 +124,26 @@ describe("staff roles", () => {
     assert.equal((await pool.query("SELECT count(*)::int AS n FROM staff_users WHERE email_normalized = 'x@example.com'")).rows[0].n, 0, "no staff account was created");
   });
 
-  it("a salesperson reaches no school or trip at all, and one salesperson cannot touch a trip assigned to another", async () => {
+  it("a salesperson reaches only the deployment-configured itinerary, and no school or trip management routes", async () => {
     const one = await h.staffUser({ email: "sales1@example.com", role: "sales", name: "Sam Sales" });
     const two = await h.staffUser({ email: "sales2@example.com", role: "sales", name: "Sia Sales" });
     const ownTrip = (await admin.as.post(`/api/admin/schools/${school.id}/trips`, { title: "One Trip", tourType: "domestic", paymentMode: "none" })).body.trip;
-    const oneId = (await admin.as.get("/api/admin/staff")).body.staff.find((x) => x.email === "sales1@example.com").id;
-    assert.equal((await admin.as.put(`/api/admin/trips/${ownTrip.id}/assignments/${oneId}`)).status, 200);
-    // the assigned salesperson reaches the itinerary and nothing else
+    // Bind ownTrip as the deployment-configured trip; all Sales users can read its itinerary
+    await pool.query("INSERT INTO portal_deployments (template_key, trip_id) VALUES ('domestic_none', $1)", [ownTrip.id]);
     assert.equal((await one.as.get(`/api/admin/trips/${ownTrip.id}/itinerary`)).status, 200);
+    assert.equal((await two.as.get(`/api/admin/trips/${ownTrip.id}/itinerary`)).status, 200, "all Sales see the deployment-configured trip");
+    // Schools, trips and admin routes are still inaccessible to any Sales user
     assert.equal((await one.as.get(`/api/admin/trips/${ownTrip.id}`)).status, 404);
     assert.equal((await one.as.get("/api/admin/schools")).status, 404);
-    // the other one gets nothing of it, and cannot change it
-    assert.equal((await two.as.get(`/api/admin/trips/${ownTrip.id}/itinerary`)).status, 403);
     assert.equal((await two.as.post(`/api/admin/trips/${ownTrip.id}/status`, { status: "active" })).status, 404);
     assert.equal((await two.as.patch(`/api/admin/trips/${ownTrip.id}`, { title: "Hijacked" })).status, 404);
     const after = await pool.query("SELECT title, status FROM trips WHERE id = $1", [ownTrip.id]);
     assert.equal(after.rows[0].title, "One Trip");
     assert.notEqual(after.rows[0].status, "active");
+    // A trip not configured for this deployment is still inaccessible (403)
+    const otherTrip = (await admin.as.post(`/api/admin/schools/${school.id}/trips`, { title: "Other Trip", tourType: "international", paymentMode: "none" })).body.trip;
+    assert.equal((await one.as.get(`/api/admin/trips/${otherTrip.id}/itinerary`)).status, 403);
+    assert.equal((await two.as.get(`/api/admin/trips/${otherTrip.id}/itinerary`)).status, 403);
   });
 });
 

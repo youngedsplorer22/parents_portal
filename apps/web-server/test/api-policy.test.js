@@ -73,7 +73,7 @@ describe("every call the frontends make is allowed", () => {
       const r = ok("staff", method, target);
       assert.equal(r.ok, true);
       assert.equal(r.target, target);
-      assert.equal(ok("public", method, target).ok, true, "a public portal also forwards Sales routes (shared-URL deployment)");
+      assert.equal(ok("public", method, target).ok, false, "public portals do not forward Sales routes");
     });
   }
 });
@@ -356,18 +356,14 @@ describe("looksLikeApi: what counts as an API request, in any spelling", () => {
   });
 });
 
-describe("Sales routes forwarded by public portals: access, body limits and method enforcement", () => {
+describe("Sales routes are NOT forwarded by public portals", () => {
   for (const [method, target] of STAFF) {
-    it(`public allows ${method} ${target}`, () => {
-      const pub = ok("public", method, target);
-      const sta = ok("staff", method, target);
-      assert.equal(pub.ok, true);
-      assert.equal(pub.target, target);
-      assert.equal(pub.maxBody, sta.maxBody, "body limit matches the staff policy");
+    it(`public blocks ${method} ${target}`, () => {
+      assert.equal(ok("public", method, target).ok, false, "public portals never forward Sales routes");
     });
   }
 
-  it("wrong methods on Sales paths are blocked for public portals", () => {
+  it("wrong methods on Sales paths are also blocked for public portals", () => {
     assert.equal(ok("public", "GET",    "/api/admin/auth/login").ok, false);
     assert.equal(ok("public", "PUT",    "/api/admin/auth/login").ok, false);
     assert.equal(ok("public", "DELETE", "/api/admin/auth/login").ok, false);

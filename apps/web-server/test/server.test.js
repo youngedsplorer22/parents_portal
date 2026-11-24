@@ -344,19 +344,17 @@ describe("a public portal forwards only its own calls", () => {
     assert.match((await rawRequest(p.port, "GET", "/apix")).body, /shell/, "a website path that merely starts with api is a page");
   });
 
-  it("also forwards each Sales call (shared-URL deployment), with the portal key and one address", async () => {
+  it("blocks all Sales calls (Sales routes are not forwarded by public portals)", async () => {
+    const before = p.upstream.calls.length;
     for (const [method, target] of [
       ["POST", "/api/admin/auth/login"], ["GET", "/api/admin/auth/session"],
       ["GET", "/api/admin/itinerary/trips"], ["POST", `/api/admin/trips/${UUID}/itinerary`],
       ["PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID}`],
     ]) {
       const res = await rawRequest(p.port, method, target, { headers: { "X-Forwarded-For": "6.6.6.6, 203.0.113.9", "X-Portal-Key": "forged" } });
-      assert.equal(res.status, 200, `${method} ${target}`);
-      const call = p.upstream.calls.at(-1);
-      assert.equal(call.url, target);
-      assert.equal(call.headers["x-portal-key"], SECRET_KEY, "public portal always adds its own key");
-      assert.equal(call.headers["x-forwarded-for"], "203.0.113.9");
+      assert.equal(res.status, 404, `${method} ${target}`);
     }
+    assert.equal(p.upstream.calls.length, before, "nothing reached the API");
   });
 
   it("admin-management paths are still blocked for a public portal, whatever the method", async () => {
