@@ -40,7 +40,7 @@ export function createApp({ db, sender, config, clock, generateCode, logger, ren
     },
   }));
 
-  const emailOtp = createEmailOtpModule({ db, sender, config: config.otp, clock, generateCode });
+  const emailOtp = createEmailOtpModule({ db, sender, config: config.otp, clock, generateCode, logger });
 
   // One gate for ALL password hashing (parents and staff share the same CPUs and worker threads).
   const passwordGate = createWorkGate(config.passwordHashing ?? defaultGateOptions());

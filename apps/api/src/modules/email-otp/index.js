@@ -17,8 +17,8 @@ export { createSmtpSender } from "./senders/smtp-sender.js";
  * Mount `router` at `mountPath`. Use `service.consumeVerificationToken` from
  * the host's registration code.
  */
-export function createEmailOtpModule({ db, sender, config, clock, generateCode }) {
-  const service = createOtpService({ db, sender, config, clock, generateCode });
+export function createEmailOtpModule({ db, sender, config, clock, generateCode, logger }) {
+  const service = createOtpService({ db, sender, config, clock, generateCode, logger });
   const router = createOtpRouter({ controller: createOtpController({ service }) });
   return { router, service, mountPath: "/api/email-otp" };
 }

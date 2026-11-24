@@ -36,6 +36,7 @@ export function createOtpService({
   clock,
   generateCode = crypto.generateCode,
   generateToken = crypto.generateToken,
+  logger = console,
 }) {
   const currentTime = async (q) => (clock ? clock() : repo.dbNow(q));
 
@@ -119,7 +120,9 @@ export function createOtpService({
   async function dispatch(delivery, email, purpose, issued, context) {
     if (delivery === "none") return;
     if (delivery === "background") {
-      deliver(email, purpose, issued, context).catch(() => {}); // deliver() already voids the code on failure
+      deliver(email, purpose, issued, context).catch(() => {
+        logger.warn?.("[email-otp] background delivery failed; code voided. Check SMTP settings and Railway logs for the error code.");
+      });
       return;
     }
     await deliver(email, purpose, issued, context);

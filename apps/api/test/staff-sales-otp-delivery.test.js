@@ -1,11 +1,16 @@
 // Regression: the first-time-setup code of EVERY provisioned Sales account goes to that account's own address,
 // from the one configured sender; an address that is not a provisioned account gets nothing, and the server
 // log says so (without naming the address) so a missing production row is no longer invisible.
+//
+// PENDING: "frontend@youngedsplorer.com" (or the correct 5th address, once the typo in
+// "frontend@youngedsplorer@gmail.com" is resolved) must be added to SALES below and provisioned in
+// the production database with: npm run ops -- sales:allow --email <address> --name "Frontend"
 import assert from "node:assert/strict";
 import { after, afterEach, beforeEach, describe, it } from "node:test";
+import { createOtpService } from "../src/modules/email-otp/service.js";
 import { createSmtpSender } from "../src/modules/email-otp/senders/smtp-sender.js";
 import { startApp } from "./harness.js";
-import { createTestPool, resetTables } from "./helpers.js";
+import { counterCodes, createTestPool, fakeClock, resetTables, testOtpConfig } from "./helpers.js";
 
 const pool = createTestPool();
 let h;
@@ -66,6 +71,41 @@ describe("Sales first-time setup code recipient", () => {
     await request(SALES[1]);
     await settle();
     assert.equal(h.sender.sent.length, 0);
+  });
+});
+
+describe("background delivery failure", () => {
+  it("when SMTP fails: send() resolves normally, logger.warn fires, code is voided and verify fails", async () => {
+    // The staff password flow uses delivery:"background" so the caller cannot time the difference
+    // between existing and non-existing accounts. When SMTP fails the OTP service must:
+    //   1. NOT propagate the error to the caller
+    //   2. log a warning (visible in Railway logs) without exposing the recipient address
+    //   3. void the OTP so it can never be verified
+    const warned = [];
+    const failingSender = {
+      mode: "smtp",
+      async send() { throw Object.assign(new Error("Auth failed"), { code: "EAUTH", responseCode: 535 }); },
+    };
+    const clock = fakeClock();
+    clock.advance(31 * 1000);
+    const svc = createOtpService({
+      db: pool,
+      sender: failingSender,
+      config: testOtpConfig(),
+      clock,
+      generateCode: counterCodes(),
+      logger: { warn: (m) => warned.push(m), error() {} },
+    });
+
+    const res = await svc.send({ email: "smtpfail@youngedsplorer.com", purpose: "staff_password", delivery: "background" });
+    assert.equal(typeof res.expiresInSeconds, "number", "resolves to the standard response shape");
+
+    await settle();
+    assert.ok(warned.some((m) => /background delivery failed/i.test(m)), `logger.warn must mention the failure; got: ${JSON.stringify(warned)}`);
+
+    // The code is voided — verify throws (not found)
+    const err = await svc.verify({ email: "smtpfail@youngedsplorer.com", purpose: "staff_password", code: "000001" }).catch((e) => e);
+    assert.equal(err?.status, 404, "voided OTP must not be verifiable");
   });
 });
 
