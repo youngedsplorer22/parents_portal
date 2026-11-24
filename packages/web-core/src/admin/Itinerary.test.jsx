@@ -9,8 +9,8 @@ import { preloadRouteChunks } from "../test/routeChunks.js";
 // Load the lazy route chunks outside the timed assertions (see test/routeChunks.js).
 beforeAll(preloadRouteChunks, 60_000);
 
-// Sales are itinerary-only: they see the trips a developer assigned to them and add and edit itinerary items. There is no admin
-// portal. The server enforces all of it (see the API tests); these tests are about what a Sales person sees and sends.
+// Sales are itinerary-only: they see the single trip the deployment is configured for and add and edit itinerary items. There is no
+// admin portal. The server enforces all of it (see the API tests); these tests are about what a Sales person sees and sends.
 // The staff app is a lazy chunk: the first render in a file can take longer than the 1 s default on a busy machine.
 configure({ asyncUtilTimeout: 6000 });
 
@@ -42,11 +42,11 @@ describe("the Sales portal is itinerary only", () => {
     expect(screen.queryByRole("link", { name: /Create a tour/ })).not.toBeInTheDocument();
   });
 
-  it("its dashboard counts only the trips assigned to the salesperson", async () => {
+  it("its dashboard counts the deployment-configured trip", async () => {
     salesWorld();
     at("/sales/dashboard");
     await screen.findByRole("heading", { name: "Sales dashboard" });
-    const stat = screen.getByText("Trips assigned to you").closest(".admin-stat").querySelector(".admin-stat-value");
+    const stat = screen.getByText("Configured trips").closest(".admin-stat").querySelector(".admin-stat-value");
     await waitFor(() => expect(stat.textContent).toBe("1"));
   });
 
@@ -62,7 +62,7 @@ describe("the Sales portal is itinerary only", () => {
 });
 
 describe("My itineraries", () => {
-  it("lists only the assigned trips, with school, year and status, and links to each itinerary", async () => {
+  it("lists only the deployment-configured trip, with school, year and status, and links to its itinerary", async () => {
     const { mine } = salesWorld();
     at("/sales/itineraries");
     const table = await screen.findByRole("table", { name: "Trips with an itinerary" });
@@ -72,11 +72,11 @@ describe("My itineraries", () => {
     expect(within(table).queryByText("Goa 2027")).not.toBeInTheDocument();
   });
 
-  it("says so, and offers nothing else, when no trip is assigned yet", async () => {
+  it("says so, and offers nothing else, when no trip is configured for this portal", async () => {
     const be = createFakeAdmin({ role: "sales" });
     be.addTrip(be.addSchool().id, {});
     at("/sales/itineraries");
-    expect(await screen.findByText(/No trips are assigned to you yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No trip is configured for this portal yet/)).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 });

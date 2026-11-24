@@ -3,8 +3,9 @@ import { after, afterEach, beforeEach, describe, it } from "node:test";
 import { startApp } from "./harness.js";
 import { createTestPool, registrationFields, resetTables, slugsOf } from "./helpers.js";
 
-// Sales are itinerary-only: they may add and edit itinerary items, and only for trips an admin assigned to them. Every other
-// staff route is admin-only. These tests call the API directly, so they prove the server refuses, not that a button is hidden.
+// Sales are itinerary-only: they may add and edit itinerary items, only for the trip the deployment is configured for
+// (portal_deployments). Every other staff route is admin-only. These tests call the API directly, so they prove the
+// server refuses, not that a button is hidden.
 const pool = createTestPool();
 const PORTAL_KEY = "domestic-free-portal-key-0123456789abcdefgh";
 let h;
@@ -12,13 +13,13 @@ let admin;
 let salesA;
 let salesB;
 let ids; // staff ids by email
-let tripA; // assigned to Sales A
-let tripB; // assigned to nobody
+let tripA; // the deployment-configured trip (domestic_none)
+let tripB; // a different template (domestic_payment) — not configured for this deployment
 let school;
 
 beforeEach(async () => {
   await resetTables(pool);
-  h = await startApp({ db: pool });
+  h = await startApp({ db: pool, staff: { deploymentTemplateKey: "domestic_none" } });
   admin = await h.staffUser({ email: "admin@example.com", role: "admin" });
   salesA = await h.staffUser({ email: "sales-a@example.com", role: "sales", name: "Sales A" });
   salesB = await h.staffUser({ email: "sales-b@example.com", role: "sales", name: "Sales B" });
@@ -27,7 +28,6 @@ beforeEach(async () => {
   school = (await admin.as.post("/api/admin/schools", { name: "Delhi Public School" })).body.school;
   tripA = (await admin.as.post(`/api/admin/schools/${school.id}/trips`, { title: "Jaipur 2027", tourType: "domestic", paymentMode: "none", academicYear: "2027-28" })).body.trip;
   tripB = (await admin.as.post(`/api/admin/schools/${school.id}/trips`, { title: "Goa 2027", tourType: "domestic", paymentMode: "payment", academicYear: "2027-28" })).body.trip;
-  assert.equal((await admin.as.put(`/api/admin/trips/${tripA.id}/assignments/${ids["sales-a@example.com"]}`)).status, 200);
 });
 afterEach(() => h.close());
 after(() => pool.end());
@@ -87,36 +87,33 @@ describe("Sales may use only the itinerary routes: every other staff address doe
   });
 });
 
-describe("Sales reach only the trips assigned to them", () => {
-  it("lists only assigned trips, with just what an itinerary editor needs", async () => {
+describe("Sales reach only the deployment-configured trip", () => {
+  beforeEach(async () => {
+    await pool.query("INSERT INTO portal_deployments (template_key, trip_id) VALUES ('domestic_none', $1)", [tripA.id]);
+  });
+
+  it("lists the deployment-configured trip, with just what an itinerary editor needs; both Sales users see it", async () => {
     const res = await salesA.as.get("/api/admin/itinerary/trips");
     assert.equal(res.status, 200);
     assert.deepEqual(res.body.trips.map((t) => t.id), [tripA.id]);
     assert.deepEqual(Object.keys(res.body.trips[0]).sort(), ["academicYear", "destination", "id", "itineraryCount", "schoolBranch", "schoolName", "status", "title", "tourType"]);
-    assert.deepEqual((await salesB.as.get("/api/admin/itinerary/trips")).body.trips, []);
+    // salesB has no staff_trip_assignments but sees the same deployment-configured trip
+    assert.deepEqual((await salesB.as.get("/api/admin/itinerary/trips")).body.trips.map((t) => t.id), [tripA.id]);
   });
 
-  it("403 on an unassigned trip for read, add and edit, and a trip that does not exist looks the same", async () => {
+  it("403 on a trip not configured for this deployment, and a trip that does not exist looks the same", async () => {
     const own = (await add(salesA, tripA)).body.item;
-    assert.equal((await items(salesB, tripA)).status, 403, "another Sales user's trip");
-    assert.equal((await items(salesA, tripB)).status, 403, "unassigned trip");
+    // salesB can access the deployment-configured trip (no assignment needed)
+    assert.equal((await items(salesB, tripA)).status, 200, "salesB can access the deployment-configured trip");
+    // tripB is domestic_payment — a different deployment, inaccessible
+    assert.equal((await items(salesA, tripB)).status, 403, "trip not in this deployment");
     assert.equal((await add(salesA, tripB)).status, 403);
-    assert.equal((await salesB.as.patch(`/api/admin/trips/${tripA.id}/itinerary/${own.id}`, { title: "Hacked" })).status, 403);
     assert.equal((await items(salesA, { id: "00000000-0000-4000-8000-000000000000" })).status, 403, "unknown id: no hint whether a trip exists");
     assert.equal((await items(salesA, { id: "not-a-uuid" })).status, 403);
     assert.equal((await pool.query("SELECT title FROM trip_itinerary_items WHERE id = $1", [own.id])).rows[0].title, "Arrive in Jaipur");
   });
 
-  it("revoking takes effect on the very next request, and assigning again restores it", async () => {
-    assert.equal((await items(salesA, tripA)).status, 200);
-    assert.equal((await admin.as.del(`/api/admin/trips/${tripA.id}/assignments/${ids["sales-a@example.com"]}`)).status, 200);
-    assert.equal((await items(salesA, tripA)).status, 403);
-    assert.equal((await add(salesA, tripA)).status, 403);
-    await admin.as.put(`/api/admin/trips/${tripA.id}/assignments/${ids["sales-a@example.com"]}`);
-    assert.equal((await items(salesA, tripA)).status, 200);
-  });
-
-  it("only an admin manages assignments: assigning is idempotent, only to an active Sales account, and is recorded", async () => {
+  it("admin assignment ops still work (idempotent, only to an active Sales account, recorded) but do not gate itinerary access", async () => {
     const put = (staffId, trip = tripB) => admin.as.put(`/api/admin/trips/${trip.id}/assignments/${staffId}`);
     assert.equal((await put(ids["sales-b@example.com"])).status, 200);
     assert.equal((await put(ids["sales-b@example.com"])).status, 200, "again: no error, no duplicate");
@@ -128,15 +125,21 @@ describe("Sales reach only the trips assigned to them", () => {
     assert.deepEqual(list.map((a) => a.staffId), [ids["sales-b@example.com"]]);
     const audit = (await pool.query("SELECT action FROM audit_log WHERE entity_id = $1 ORDER BY id", [tripB.id])).rows.map((r) => r.action);
     assert.ok(audit.includes("trip.assign_sales"));
+    // The assignment does NOT grant salesB access to tripB (which is not the deployment-configured trip)
+    assert.equal((await items(salesB, tripB)).status, 403);
   });
 
-  it("a deactivated Sales account cannot be assigned and cannot sign in", async () => {
+  it("a deactivated Sales account cannot be assigned (admin API) and cannot sign in", async () => {
     await pool.query("UPDATE staff_users SET disabled_at = now() WHERE email_normalized = 'sales-b@example.com'");
     assert.equal((await admin.as.put(`/api/admin/trips/${tripB.id}/assignments/${ids["sales-b@example.com"]}`)).status, 400);
   });
 });
 
 describe("itinerary items", () => {
+  beforeEach(async () => {
+    await pool.query("INSERT INTO portal_deployments (template_key, trip_id) VALUES ('domestic_none', $1)", [tripA.id]);
+  });
+
   it("Sales add and edit items on an assigned trip, in day order, with the author and times recorded", async () => {
     const a = await add(salesA, tripA, item({ dayNumber: 2, title: "Pushkar" }));
     const b = await add(salesA, tripA, item({ dayNumber: 1, title: "Arrive", position: 0 }));
@@ -176,8 +179,12 @@ describe("itinerary items", () => {
   });
 
   it("an item is reachable only through its own trip: a Sales user cannot edit trip B's item through trip A's URL", async () => {
-    await admin.as.put(`/api/admin/trips/${tripB.id}/assignments/${ids["sales-b@example.com"]}`);
-    const other = (await add(salesB, tripB)).body.item;
+    // Insert an item directly into tripB (tripB is not the deployment-configured trip, so its items cannot be touched via API)
+    const { rows } = await pool.query(
+      "INSERT INTO trip_itinerary_items (trip_id, day_number, title) VALUES ($1, 1, 'Arrive in Jaipur') RETURNING id",
+      [tripB.id],
+    );
+    const other = { id: rows[0].id };
     const res = await salesA.as.patch(`/api/admin/trips/${tripA.id}/itinerary/${other.id}`, { title: "Cross-trip edit" });
     assert.equal(res.status, 404);
     assert.equal((await pool.query("SELECT title FROM trip_itinerary_items WHERE id = $1", [other.id])).rows[0].title, "Arrive in Jaipur");

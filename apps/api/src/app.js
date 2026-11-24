@@ -49,7 +49,7 @@ export function createApp({ db, sender, config, clock, generateCode, logger, ren
   // the login route needs a staff session; admin-only routes check the role again.
   const staff = createStaffModule({ db, config: config.staff, emailOtp: emailOtp.service, sender, logger, gate: passwordGate });
   const catalog = createCatalogModule({ db, config: config.staff });
-  const itinerary = createItineraryModule({ db });
+  const itinerary = createItineraryModule({ db, deploymentTemplateKey: config.staff?.deploymentTemplateKey ?? null });
   const registrations = createRegistrationsModule({ db, emailOtp: emailOtp.service, sessions: auth.service, passwords: auth.service.passwords, catalog: catalog.service, cookie: config.auth });
   // The private Google Drive that keeps a copy of each submitted PDF. Null when it isn't configured: the portal then
   // works without it. `driveEndpoints` lets tests point the client at a fake Drive; production uses Google's own hosts.

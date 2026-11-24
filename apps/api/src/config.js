@@ -138,6 +138,9 @@ const envSchema = z.object({
   ALLOW_PRODUCTION_DATABASE: z.string().optional(),
   // Must stay unset in production (the server refuses to start otherwise): it is the local test database setting.
   TEST_DATABASE_URL: z.string().optional(),
+  // Which of the four portal deployment template keys this staff portal serves. The API looks up portal_deployments for
+  // this key to find the trip that all authenticated Sales accounts may access. Unset: trip list is empty.
+  STAFF_DEPLOYMENT_TEMPLATE_KEY: z.enum(["domestic_payment", "domestic_none", "international_payment", "international_none"]).optional(),
 });
 
 
@@ -347,6 +350,8 @@ export function loadConfig(env = process.env) {
       publicBaseUrls: linkHosts.publicBaseUrls,
       joinLookups: { windowSeconds: 60, max: e.JOIN_LOOKUPS_PER_MINUTE },
       requireBinding: e.PORTAL_BINDING_REQUIRED === "true",
+      // Which portal deployment this staff portal serves (resolved via portal_deployments table at request time).
+      deploymentTemplateKey: e.STAFF_DEPLOYMENT_TEMPLATE_KEY ?? null,
     },
   };
 }

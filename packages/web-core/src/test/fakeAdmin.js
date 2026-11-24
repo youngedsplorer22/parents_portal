@@ -20,7 +20,8 @@ export function createFakeAdmin({ role = "sales", signedIn = true, schools = [],
     team: team ?? [{ id: id(), ...STAFF.admin, status: "active", hasPassword: true }, ...(role === "sales" ? [me] : [])],
     live: {}, // tripId -> { candidates, teamLeadEnrolmentId, state, location }
     itinerary: {}, // tripId -> items
-    assignments: [], // { staffId, tripId }: which Sales accounts may keep which trip's itinerary
+    assignments: [], // { staffId, tripId }: preserved but no longer used for access control
+    deployedTripId: null, // the single trip this deployment is configured for (set via assign())
     deployments: {}, // templateKey -> tripId
     // Like the server's 15-minute access token: when expired, protected requests answer 401 until the page renews.
     accessExpired: false,
@@ -34,8 +35,8 @@ export function createFakeAdmin({ role = "sales", signedIn = true, schools = [],
     const publicPath = `/join/${s?.slug ?? slug(s?.name ?? "school")}/${s?.branchSlug ?? (s?.branch ? slug(s.branch) : "main")}/${t.slug ?? slug(t.title)}`;
     return { ...t, schoolName: s?.name, schoolBranch: s?.branch ?? null, publicRegistration: t.publicRegistration ?? false, publicPath, publicUrl: hostOf(t) ? `${hostOf(t)}${publicPath}` : null };
   };
-  // Like the server: admins reach every trip's itinerary; Sales only trips an admin assigned to them.
-  const canItinerary = (tripId) => state.staff.role === "admin" || state.assignments.some((a) => a.staffId === me.id && a.tripId === tripId);
+  // Like the server: admins reach every trip's itinerary; Sales only the deployment-configured trip.
+  const canItinerary = (tripId) => state.staff.role === "admin" || state.deployedTripId === tripId;
   const needStaff = (fn) => (m, body) => (state.signedIn ? fn(m, body) : apiError(401, "UNAUTHENTICATED"));
 
   const routes = [
@@ -129,8 +130,8 @@ export function createFakeAdmin({ role = "sales", signedIn = true, schools = [],
       state.queued[key] = [...(state.queued[key] ?? []), ...responses];
     },
     calls: (re) => state.calls.filter((c) => !re || re.test(c.key)),
-    /** Assigns the signed-in Sales account (or the given staff id) to a trip, as an admin would. */
-    assign: (tripId, staffId = me.id) => state.assignments.push({ staffId, tripId }),
+    /** Sets the deployment-configured trip for this portal (simulates ops portal:bind + STAFF_DEPLOYMENT_TEMPLATE_KEY). */
+    assign: (tripId) => { state.deployedTripId = tripId; },
     me,
     addSchool: (over = {}) => {
       // made by whoever is signed in, unless the test says otherwise (createdBy: "someone@else")

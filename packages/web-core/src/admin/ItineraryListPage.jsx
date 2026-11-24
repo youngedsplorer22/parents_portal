@@ -5,7 +5,7 @@ import { useStaff } from "./staffContext.js";
 import { useAdminData } from "./useAdminData.js";
 
 /**
- * The trips whose itinerary this person may keep: only the trips a developer assigned to them (the server decides).
+ * The trips whose itinerary this person may keep: the trip the current deployment is configured for (the server decides).
  * Nothing here creates or changes a school or a trip.
  */
 export default function ItineraryListPage() {
@@ -14,13 +14,13 @@ export default function ItineraryListPage() {
   return (
     <>
       <h1>My itineraries</h1>
-      <p className="admin-muted">Add and edit the itinerary of each trip below. You see only the trips assigned to you.</p>
+      <p className="admin-muted">Add and edit the itinerary for the trip below.</p>
       <section className="admin-card" aria-labelledby="itinerary-trips">
         <h2 id="itinerary-trips">Trips</h2>
         {status === "loading" && <p role="status">Loading…</p>}
         {status === "error" && <p className="admin-error" role="alert">{error}</p>}
         {status === "ready" && (data.length === 0 ? (
-          <p className="admin-muted">No trips are assigned to you yet. Ask the team that set up your account.</p>
+          <p className="admin-muted">No trip is configured for this portal yet. Contact the team that set up your account.</p>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table admin-table-stack">

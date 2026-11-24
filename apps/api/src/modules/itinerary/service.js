@@ -18,27 +18,37 @@ const ITEM_COLUMNS = "id, trip_id, day_number, position, title, details, created
 
 /**
  * The itinerary, for Sales. Who may do what is decided HERE, from req.staff (set by requireStaff, never from the request):
- * a Sales user may read and write the itinerary of a trip a developer assigned to them (staff_trip_assignments), and
- * nothing else. A Sales user asking for a trip they are not assigned to (or one that does not exist) gets the same 403,
- * so the answer does not reveal which trips exist. (Assignments and portal bindings are developer commands: operations.js.)
+ * a Sales user may read and write the itinerary of the ONE trip the deployment is configured for (portal_deployments),
+ * and nothing else. The trip is resolved from the server-side deploymentTemplateKey config — never from the request.
+ * A Sales user asking for a trip that is not the deployment's trip (or one that does not exist) gets the same 403,
+ * so the answer does not reveal which trips exist. (Portal bindings are developer commands: operations.js.)
  */
-export function createItineraryService({ db }) {
-  /** Throws unless `actor` is a Sales user assigned to this trip. Unknown, malformed and unassigned all give the same 403. */
+export function createItineraryService({ db, deploymentTemplateKey = null }) {
+  /** Returns the trip_id the deployment is currently configured for, or null if not configured / not bound. */
+  async function resolveDeploymentTrip(q) {
+    if (!deploymentTemplateKey) return null;
+    const { rows } = await q.query("SELECT trip_id FROM portal_deployments WHERE template_key = $1", [deploymentTemplateKey]);
+    return rows[0]?.trip_id ?? null;
+  }
+
+  /** Throws unless `actor` is a Sales user and `tripId` matches the deployment-configured trip. Unknown, malformed and
+   * non-deployment trips all give the same 403, so the answer does not reveal which trips exist. */
   async function authorizeTrip(q, actor, tripId) {
     if (actor?.role !== "sales" || typeof tripId !== "string" || !UUID.test(tripId)) throw forbiddenError();
-    const { rows } = await q.query("SELECT 1 FROM staff_trip_assignments WHERE staff_id = $1 AND trip_id = $2", [actor.id, tripId]);
-    if (rows.length === 0) throw forbiddenError();
+    const deployedTripId = await resolveDeploymentTrip(q);
+    if (!deployedTripId || deployedTripId !== tripId) throw forbiddenError();
   }
 
   async function listTrips(actor) {
     if (actor?.role !== "sales") throw forbiddenError();
+    const tripId = await resolveDeploymentTrip(db);
+    if (!tripId) return [];
     const { rows } = await db.query(
       `SELECT t.id, t.title, t.destination, t.academic_year, t.tour_type, t.status, s.name AS school_name, s.branch AS school_branch,
               (SELECT count(*)::int FROM trip_itinerary_items i WHERE i.trip_id = t.id) AS itinerary_count
          FROM trips t JOIN schools s ON s.id = t.school_id
-         JOIN staff_trip_assignments a ON a.trip_id = t.id AND a.staff_id = $1
-        ORDER BY s.name, t.created_at DESC, t.id LIMIT 500`,
-      [actor.id],
+        WHERE t.id = $1`,
+      [tripId],
     );
     return rows.map((r) => ({
       id: r.id, title: r.title, destination: r.destination, academicYear: r.academic_year, tourType: r.tour_type, status: r.status,
