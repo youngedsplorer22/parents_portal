@@ -19,9 +19,9 @@ beforeEach(async () => {
   admin = await h.staffUser({ email: "dev@example.com", role: "admin" });
   sales = await h.staffUser({ email: "sales@company.example", role: "sales" });
   const school = (await admin.as.post("/api/admin/schools", { name: "ABC School" })).body.school;
-  const make = async (title) => (await admin.as.post(`/api/admin/schools/${school.id}/trips`, { title, tourType: "domestic", paymentMode: "none", academicYear: "2027-28" })).body.trip;
+  const make = async (title, tourType = "domestic") => (await admin.as.post(`/api/admin/schools/${school.id}/trips`, { title, tourType, paymentMode: "none", academicYear: "2027-28" })).body.trip;
   tripA = await make("Jaipur 2027");
-  tripB = await make("Goa 2027");
+  tripB = await make("Goa 2027", "international"); // different template_key (international_none) avoids conflicting with the domestic_none portal binding
   for (const t of [tripA, tripB]) {
     await admin.as.post(`/api/admin/trips/${t.id}/status`, { status: "active" });
     await admin.as.post(`/api/admin/trips/${t.id}/public-registration`, { enabled: true });

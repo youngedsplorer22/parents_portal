@@ -178,7 +178,11 @@ describe("the dashboard's data", () => {
     await pool.query("DELETE FROM drive_folders");
     fake.files.clear();
     assert.deepEqual((await get("/pdf/status")).body.pdf, { status: "pending" }, "asking for the status makes the record");
+    // Drain the upload that the status check scheduled before resetting state, so the sweep test starts from a clean slate.
+    await settle();
     await pool.query("DELETE FROM registration_pdfs");
+    await pool.query("DELETE FROM drive_folders");
+    fake.files.clear();
     assert.equal(await h.services.onboarding.sweepPdfStorage(), 1, "and without that, the sweep finds the form itself");
     await settle();
     assert.equal((await row()).status, "stored");
