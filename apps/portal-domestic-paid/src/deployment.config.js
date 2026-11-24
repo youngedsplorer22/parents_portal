@@ -20,6 +20,7 @@
 // import abcJaipurLogo from "./school-logos/abc-school-jaipur.png";
 
 // Staging test configuration (dummy data only). Comment-only edit made to trigger a fresh staging deployment.
+// Redeploy trigger: Sales portal integration (commit 4602e42) — ensures Railway rebuilds from the current branch HEAD.
 
 export default {
   school: "staging-demo-school",
