@@ -40,11 +40,22 @@ describe("Sales login link visibility", () => {
     expect(screen.getByRole("link", { name: "Sales staff? Log in" })).toBeInTheDocument();
   });
 
-  it("Sales link absent on the happy-path trip page (no login links shown there)", async () => {
+  it("appears on the happy-path trip page (registration open)", async () => {
     createFakeAdmin({ joinResponses: { [KEY]: reply(200, info("ABC School", "Jaipur")) } });
     at(`/join/${KEY}`);
     expect(await screen.findByRole("link", { name: "Register or log in" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Sales staff? Log in" })).not.toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Sales staff? Log in" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/sales/login");
+  });
+
+  it("appears on the happy-path trip page when registration is closed", async () => {
+    createFakeAdmin({ joinResponses: { [KEY]: reply(200, info("ABC School", "Jaipur", { registrationOpen: false })) } });
+    at(`/join/${KEY}`);
+    await screen.findByText(/isn't open for this trip right now/);
+    const link = screen.getByRole("link", { name: "Sales staff? Log in" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/sales/login");
   });
 });
 

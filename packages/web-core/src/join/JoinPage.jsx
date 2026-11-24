@@ -63,6 +63,7 @@ export default function JoinPage() {
                   <span>Registration isn't open for this trip right now. Please check with your school.</span>
                 </div>
               )}
+              <p className="portal-switch"><a href="/sales/login">Sales staff? Log in</a></p>
             </div>
           )}
         </div>
