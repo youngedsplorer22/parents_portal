@@ -69,6 +69,9 @@ describe("parents: an expired access token is renewed without the parent noticin
   });
 
   it("submitting after the token ran out submits exactly once and shows the dashboard", async () => {
+    // The pre-submit PUT (added by OnboardingWizard.submit to force a save before submitOnboarding) hits
+    // the expired token first, triggers one renewal, then succeeds. Submit receives a fresh token and
+    // needs no retry: exactly one submit call, one submission recorded, one renewal.
     const be = parent({ form: form({ data: ANSWERS, currentSection: "review", version: 3 }) });
     openForm(be);
     await user.click(await screen.findByRole("checkbox", { name: /I confirm that the information provided/ }));
@@ -76,10 +79,22 @@ describe("parents: an expired access token is renewed without the parent noticin
     be.state.accessExpired = true;
     await user.click(screen.getByRole("button", { name: "Submit registration" }));
     expect(await screen.findByRole("navigation", { name: "Dashboard sections" })).toBeInTheDocument();
+    // One submission recorded; signature persisted
     expect(be.state.submissions).toBe(1);
-    expect(be.calls().filter((c) => c.key === "POST /api/onboarding/submit")).toHaveLength(2); // refused unprocessed, then sent once
     expect(be.state.form.acknowledgement.signatureName).toBe("Meera Rao");
+    // Exactly one renewal and it happened before the submit
     expect(renewals(be)).toBe(1);
+    const allCalls = be.calls();
+    const refreshIdx = allCalls.findIndex((c) => c.key === REFRESH);
+    expect(refreshIdx).toBeGreaterThan(-1);
+    // The PUT triggered the renewal (at least one PUT is recorded before the refresh call)
+    expect(allCalls.slice(0, refreshIdx).some((c) => c.key === "PUT /api/onboarding")).toBe(true);
+    // Submit came after the renewal and needed no retry
+    const firstSubmitIdx = allCalls.findIndex((c) => c.key === "POST /api/onboarding/submit");
+    // The PUT retry succeeded after renewal (a PUT call exists between the refresh and the submit)
+    expect(allCalls.slice(refreshIdx, firstSubmitIdx).some((c) => c.key === "PUT /api/onboarding")).toBe(true);
+    expect(firstSubmitIdx).toBeGreaterThan(refreshIdx);
+    expect(allCalls.filter((c) => c.key === "POST /api/onboarding/submit")).toHaveLength(1);
   });
 
   it("downloading the PDF after the token ran out renews and downloads it", async () => {

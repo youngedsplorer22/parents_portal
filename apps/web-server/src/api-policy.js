@@ -3,11 +3,15 @@
 // answered here with a plain 404 and never reaches the API.
 //
 //   "public"  the four registration portals: the parent calls (join page, registration, emailed codes, sign-in, enrolment,
-//             the registration form, its PDF, live location, school logos).
-//   "staff"   the Sales portal (staff-only build): Sales sign-in and password, and the deployment-configured trip itinerary.
+//             the registration form, its PDF, live location, school logos) PLUS the Sales staff calls (sign-in, password
+//             setup/reset, itinerary). The Sales UI ships in every public portal build (vite-config.js __HAS_STAFF__=true),
+//             so the staff API routes must be reachable from the public portal's own host.
+//   "staff"   a dedicated Sales-only build (PORTAL_ROLE=staff): exactly the same Sales routes, no parent routes.
 //
-// The API still checks every permission itself (sessions, ownership, portal key, Sales assignment). This is a second wall, so
-// a public website cannot be used to reach Sales routes or the mobile app's routes, even by someone who finds them.
+// The API still checks every permission itself (sessions, ownership, portal key, Sales assignment). For the Sales routes in
+// the public policy the API's own auth is the only wall; the proxy no longer provides a second one for those 13 paths.
+// /api/mobile/* and all developer-only admin paths (/api/admin/schools, /api/admin/trips, /api/admin/staff, etc.) remain
+// blocked on both portals.
 //
 // Written from the inventory of every call in packages/web-core/src/api/*.js and admin/adminApi.js. Deliberately NOT forwarded
 // by any portal: /api/mobile/* (the mobile app is not part of this launch; the API keeps it), /api/health*, the enrolment list
@@ -57,6 +61,21 @@ const POLICIES = {
     rule("POST", "/api/live-location/location", {}, 1 * KB),
     rule("POST", "/api/live-location/stop", {}, 1 * KB),
     rule("GET", `/api/school-logos/${SLUG}/${SLUG}`, VERSION),
+    // Sales staff UI ships in every public portal build (vite-config.js __HAS_STAFF__=true). These are the same 13 routes
+    // as the staff policy; the API enforces authorization on each one independently.
+    rule("POST", "/api/admin/auth/login", {}, 8 * KB),
+    rule("GET", "/api/admin/auth/session"),
+    rule("POST", "/api/admin/auth/refresh", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/logout", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password/request", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password/resend", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password/verify", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password/confirm", {}, 8 * KB),
+    rule("POST", "/api/admin/auth/password", {}, 8 * KB),
+    rule("GET", "/api/admin/itinerary/trips"),
+    rule("GET", `/api/admin/trips/${UUID}/itinerary`),
+    rule("POST", `/api/admin/trips/${UUID}/itinerary`, {}, 8 * KB),
+    rule("PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID}`, {}, 8 * KB),
   ],
   staff: [
     rule("POST", "/api/admin/auth/login", {}, 8 * KB),

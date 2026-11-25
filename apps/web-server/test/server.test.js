@@ -344,17 +344,16 @@ describe("a public portal forwards only its own calls", () => {
     assert.match((await rawRequest(p.port, "GET", "/apix")).body, /shell/, "a website path that merely starts with api is a page");
   });
 
-  it("blocks all Sales calls (Sales routes are not forwarded by public portals)", async () => {
-    const before = p.upstream.calls.length;
+  it("forwards Sales calls (staff UI ships in every public portal build — HAS_STAFF=true)", async () => {
     for (const [method, target] of [
       ["POST", "/api/admin/auth/login"], ["GET", "/api/admin/auth/session"],
       ["GET", "/api/admin/itinerary/trips"], ["POST", `/api/admin/trips/${UUID}/itinerary`],
       ["PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID}`],
     ]) {
       const res = await rawRequest(p.port, method, target, { headers: { "X-Forwarded-For": "6.6.6.6, 203.0.113.9", "X-Portal-Key": "forged" } });
-      assert.equal(res.status, 404, `${method} ${target}`);
+      assert.equal(res.status, 200, `${method} ${target}`);
+      assert.equal(p.upstream.calls.at(-1).url, target);
     }
-    assert.equal(p.upstream.calls.length, before, "nothing reached the API");
   });
 
   it("admin-management paths are still blocked for a public portal, whatever the method", async () => {

@@ -159,6 +159,7 @@ export default function OnboardingWizard({
     submitGuard.current = true;
     setSubmitting(true);
     try {
+      queue(answers, section);
       if (!(await autosave.flush())) {
         setSubmitError("We couldn't save your latest changes, so the form was not submitted. Please try again.");
         return;

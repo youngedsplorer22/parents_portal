@@ -73,7 +73,10 @@ describe("every call the frontends make is allowed", () => {
       const r = ok("staff", method, target);
       assert.equal(r.ok, true);
       assert.equal(r.target, target);
-      assert.equal(ok("public", method, target).ok, false, "public portals do not forward Sales routes");
+      // Public portals also forward Sales routes: the staff UI ships in every portal build (vite-config.js __HAS_STAFF__=true).
+      const rp = ok("public", method, target);
+      assert.equal(rp.ok, true, "public portals also forward Sales routes");
+      assert.equal(rp.target, target, "target forwarded exactly as validated");
     });
   }
 });
@@ -113,9 +116,9 @@ describe("blocked on every portal", () => {
     }
   });
 
-  it("the Sales portal forwards no parent route, and public portals block wrong methods and admin-only paths, whatever the method", () => {
+  it("the Sales portal forwards no parent route, and public portals block wrong methods and developer-only admin paths, whatever the method", () => {
     for (const m of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
-      // Admin paths the public allowlist never includes.
+      // Developer-only admin paths not in either allowlist (live-location is a developer route, not a Sales route).
       assert.equal(ok("public", m, `/api/admin/trips/${UUID}/live-location`).ok, false);
       assert.equal(ok("public", m, `/api/admin/trips/${UUID}/live-location/team-lead`).ok, false);
       // The Sales portal never forwards a parent route.
@@ -336,6 +339,9 @@ describe("query strings: only the named parameters, strictly", () => {
     }
     assert.equal(ok("staff", "GET", "/api/admin/itinerary/trips?x=1").ok, false);
     assert.equal(ok("staff", "GET", "/api/admin/auth/session?x=1").ok, false);
+    assert.equal(ok("public", "GET", "/api/admin/itinerary/trips?x=1").ok, false);
+    assert.equal(ok("public", "GET", "/api/admin/auth/session?x=1").ok, false);
+    assert.equal(ok("public", "POST", "/api/admin/auth/login?x=1").ok, false);
   });
 
   it("forwards the validated query exactly as received", () => {
@@ -356,43 +362,53 @@ describe("looksLikeApi: what counts as an API request, in any spelling", () => {
   });
 });
 
-describe("Sales routes are NOT forwarded by public portals", () => {
+describe("Sales routes are forwarded by both portals; unrelated admin paths remain blocked on both", () => {
+  // Regression for the fix that added the 13 staff routes to POLICIES.public (vite-config.js __HAS_STAFF__=true means
+  // the staff UI ships in every public portal build and must be reachable from the public portal's own host).
   for (const [method, target] of STAFF) {
-    it(`public blocks ${method} ${target}`, () => {
-      assert.equal(ok("public", method, target).ok, false, "public portals never forward Sales routes");
+    it(`public portal allows ${method} ${target}`, () => {
+      const r = ok("public", method, target);
+      assert.equal(r.ok, true, "public portal must forward this Sales route");
+      assert.equal(r.target, target, "target forwarded exactly as validated");
     });
   }
 
-  it("wrong methods on Sales paths are also blocked for public portals", () => {
-    assert.equal(ok("public", "GET",    "/api/admin/auth/login").ok, false);
-    assert.equal(ok("public", "PUT",    "/api/admin/auth/login").ok, false);
-    assert.equal(ok("public", "DELETE", "/api/admin/auth/login").ok, false);
-    assert.equal(ok("public", "POST",   "/api/admin/auth/session").ok, false);
-    assert.equal(ok("public", "POST",   "/api/admin/itinerary/trips").ok, false);
-    assert.equal(ok("public", "PATCH",  "/api/admin/itinerary/trips").ok, false);
-    assert.equal(ok("public", "PUT",    `/api/admin/trips/${UUID}/itinerary`).ok, false);
-    assert.equal(ok("public", "DELETE", `/api/admin/trips/${UUID}/itinerary`).ok, false);
-    assert.equal(ok("public", "GET",    `/api/admin/trips/${UUID}/itinerary/${UUID2}`).ok, false);
-    assert.equal(ok("public", "DELETE", `/api/admin/trips/${UUID}/itinerary/${UUID2}`).ok, false);
+  it("wrong methods on Sales paths are blocked on both portals", () => {
+    for (const role of ["public", "staff"]) {
+      assert.equal(ok(role, "GET",    "/api/admin/auth/login").ok, false, `${role}: GET /api/admin/auth/login`);
+      assert.equal(ok(role, "PUT",    "/api/admin/auth/login").ok, false, `${role}: PUT`);
+      assert.equal(ok(role, "DELETE", "/api/admin/auth/login").ok, false, `${role}: DELETE`);
+      assert.equal(ok(role, "POST",   "/api/admin/auth/session").ok, false, `${role}: POST /api/admin/auth/session`);
+      assert.equal(ok(role, "POST",   "/api/admin/itinerary/trips").ok, false, `${role}: POST /api/admin/itinerary/trips`);
+      assert.equal(ok(role, "PATCH",  "/api/admin/itinerary/trips").ok, false, `${role}: PATCH`);
+      assert.equal(ok(role, "PUT",    `/api/admin/trips/${UUID}/itinerary`).ok, false, `${role}: PUT .../itinerary`);
+      assert.equal(ok(role, "DELETE", `/api/admin/trips/${UUID}/itinerary`).ok, false, `${role}: DELETE .../itinerary`);
+      assert.equal(ok(role, "GET",    `/api/admin/trips/${UUID}/itinerary/${UUID2}`).ok, false, `${role}: GET .../itinerary/{id}`);
+      assert.equal(ok(role, "DELETE", `/api/admin/trips/${UUID}/itinerary/${UUID2}`).ok, false, `${role}: DELETE .../itinerary/{id}`);
+    }
   });
 
-  it("invalid UUIDs in Sales paths are blocked for public portals", () => {
-    assert.equal(ok("public", "GET",   "/api/admin/trips/not-a-uuid/itinerary").ok, false);
-    assert.equal(ok("public", "POST",  "/api/admin/trips/not-a-uuid/itinerary").ok, false);
-    assert.equal(ok("public", "PATCH", `/api/admin/trips/${UUID}/itinerary/not-a-uuid`).ok, false);
-    assert.equal(ok("public", "PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID2}/extra`).ok, false);
-    assert.equal(ok("public", "GET",   `/api/admin/trips/${UUID}/itinerary/`).ok, false);
+  it("invalid UUIDs in Sales paths are blocked on both portals", () => {
+    for (const role of ["public", "staff"]) {
+      assert.equal(ok(role, "GET",   "/api/admin/trips/not-a-uuid/itinerary").ok, false, `${role}: bad trip UUID`);
+      assert.equal(ok(role, "POST",  "/api/admin/trips/not-a-uuid/itinerary").ok, false, `${role}: bad trip UUID POST`);
+      assert.equal(ok(role, "PATCH", `/api/admin/trips/${UUID}/itinerary/not-a-uuid`).ok, false, `${role}: bad item UUID`);
+      assert.equal(ok(role, "PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID2}/extra`).ok, false, `${role}: extra segment`);
+      assert.equal(ok(role, "GET",   `/api/admin/trips/${UUID}/itinerary/`).ok, false, `${role}: trailing slash`);
+    }
   });
 
-  it("admin-management paths not in the public allowlist are blocked on every method", () => {
+  it("developer-only admin-management paths are blocked on both portals and every method", () => {
     for (const m of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
-      assert.equal(ok("public", m, "/api/admin/schools").ok, false);
-      assert.equal(ok("public", m, "/api/admin/staff").ok, false);
-      assert.equal(ok("public", m, "/api/admin/audit").ok, false);
-      assert.equal(ok("public", m, "/api/admin/trips").ok, false);
-      assert.equal(ok("public", m, `/api/admin/trips/${UUID}`).ok, false);
-      assert.equal(ok("public", m, `/api/admin/trips/${UUID}/live-location`).ok, false);
-      assert.equal(ok("public", m, "/api/admin/portal-deployments/domestic_none").ok, false);
+      for (const role of ["public", "staff"]) {
+        assert.equal(ok(role, m, "/api/admin/schools").ok, false, `${role} ${m} /api/admin/schools`);
+        assert.equal(ok(role, m, "/api/admin/staff").ok, false, `${role} ${m} /api/admin/staff`);
+        assert.equal(ok(role, m, "/api/admin/audit").ok, false, `${role} ${m} /api/admin/audit`);
+        assert.equal(ok(role, m, "/api/admin/trips").ok, false, `${role} ${m} /api/admin/trips`);
+        assert.equal(ok(role, m, `/api/admin/trips/${UUID}`).ok, false, `${role} ${m} /api/admin/trips/{UUID}`);
+        assert.equal(ok(role, m, `/api/admin/trips/${UUID}/live-location`).ok, false, `${role} ${m} .../live-location`);
+        assert.equal(ok(role, m, "/api/admin/portal-deployments/domestic_none").ok, false, `${role} ${m} .../portal-deployments`);
+      }
     }
   });
 });

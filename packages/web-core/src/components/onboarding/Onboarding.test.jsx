@@ -807,6 +807,57 @@ describe("review and final submission", () => {
     await user.click(submitButton());
     expect(await screen.findByText("Registration submitted")).toBeInTheDocument();
   });
+
+  it("submit saves the latest complete answers before submitOnboarding even when dirty is false", async () => {
+    // Regression: flush() returned true without saving when dirty=false. The fix always calls
+    // queue(answers, section) first so a fresh save fires on every submit attempt.
+    const be = createFakeBackend({ signedIn: true });
+    await pickValid(be, "domestic", "Student", { currentSection: "review" });
+    // Form loads at review with no pending edits; dirty=false from the start.
+    await sign();
+    const putsBefore = be.saves().length;
+    await user.click(submitButton());
+    expect(await screen.findByText("Registration submitted")).toBeInTheDocument();
+    // A PUT fired even though dirty was false before submit
+    expect(be.saves().length).toBeGreaterThan(putsBefore);
+    expect(be.calls(SUBMIT)).toHaveLength(1);
+    // The PUT carried all four sections' data (toPayload uses answerFields which spans the whole form)
+    const lastPut = be.saves().at(-1);
+    expect(lastPut.body.data).toMatchObject({ fullName: expect.any(String), nomineeName: expect.any(String), mealPreference: expect.any(String), phone: "9876543210" });
+    // The submit used the version returned by that PUT, not the initial load version
+    expect(be.calls(SUBMIT)[0].body.version).toBe(be.state.form.version - 1);
+  });
+
+  it("submit saves pending section edits before submitOnboarding, including all filled answers", async () => {
+    // Documents that all four sections' data reaches the server and the submit version matches.
+    // Note: when dirty=true the old flush() already handled it; this test validates correct data
+    // content and the version handoff (the submit uses the version the final PUT returned).
+    const be = createFakeBackend({ signedIn: true });
+    await pickTour(be, "domestic");
+    await fillDomestic();
+    await next();
+    await sign();
+    await user.click(submitButton());
+    expect(await screen.findByText("Registration submitted")).toBeInTheDocument();
+    expect(be.calls(SUBMIT)).toHaveLength(1);
+    // All four sections reached the server in the last PUT before submit
+    const lastPut = be.saves().at(-1);
+    expect(lastPut.body.data).toMatchObject({ fullName: "Asha Rao", nomineeName: "B Vijaya", mealPreference: "Non-veg", phone: "9876543210" });
+    // The submit version equals the version the final PUT returned
+    expect(be.calls(SUBMIT)[0].body.version).toBe(be.state.form.version - 1);
+  });
+
+  it("if the pre-submit save fails, the form is not submitted and the save error is shown", async () => {
+    // Regression: without the fix, flush() was a no-op when dirty=false (the PUT never fired, so
+    // a queued failure here had no effect and submitOnboarding was called anyway).
+    const be = createFakeBackend({ signedIn: true });
+    await pickValid(be, "domestic", "Student", { currentSection: "review" });
+    await sign();
+    be.queue(PUT, () => { throw new TypeError("Failed to fetch"); });
+    await user.click(submitButton());
+    expect(await screen.findByText(/form was not submitted/)).toBeInTheDocument();
+    expect(be.calls(SUBMIT)).toHaveLength(0);
+  });
 });
 
 describe("after submission (policy: read-only)", () => {
