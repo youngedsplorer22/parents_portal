@@ -240,19 +240,21 @@ describe("no public way to create staff, and write protections", () => {
   });
 
   it("refuses a state-changing request from another site (Origin check), allows the same site", async () => {
-    await h.makeStaff({ email: ADMIN, role: "sales" });
-    const { as } = await h.staffSignIn(ADMIN);
-    const staffId = (await pool.query("SELECT id FROM staff_users WHERE email_normalized = $1", [ADMIN])).rows[0].id;
+    // The itinerary service authorises via portal_deployments, not staff_trip_assignments. Open an app with
+    // deploymentTemplateKey set so authorizeTrip can resolve the trip; the CSRF check runs before authorisation.
+    const localH = await open({ staff: { deploymentTemplateKey: "domestic_none" } });
+    await localH.makeStaff({ email: ADMIN, role: "sales" });
+    const { as } = await localH.staffSignIn(ADMIN);
     const school = (await pool.query("INSERT INTO schools (name, name_normalized, slug, branch_slug) VALUES ('S', 's', 's', 'main') RETURNING id")).rows[0].id;
     const trip = (await pool.query("INSERT INTO trips (school_id, title, tour_type, payment_mode, slug) VALUES ($1, 'T', 'domestic', 'none', 't') RETURNING id", [school])).rows[0].id;
-    await pool.query("INSERT INTO staff_trip_assignments (staff_id, trip_id) VALUES ($1, $2)", [staffId, trip]);
+    await pool.query("INSERT INTO portal_deployments (template_key, trip_id) VALUES ('domestic_none', $1)", [trip]);
     const bad = await as.post(`/api/admin/trips/${trip}/itinerary`, { dayNumber: 1, title: "Cross site" }, { headers: { origin: "https://evil.example" } });
     assert.equal(bad.status, 403);
     assert.equal(bad.body.error.code, "CROSS_SITE_REQUEST");
     assert.equal((await pool.query("SELECT count(*)::int AS n FROM trip_itinerary_items")).rows[0].n, 0);
-    const sameSite = await as.post(`/api/admin/trips/${trip}/itinerary`, { dayNumber: 1, title: "Same site" }, { headers: { origin: h.base } });
+    const sameSite = await as.post(`/api/admin/trips/${trip}/itinerary`, { dayNumber: 1, title: "Same site" }, { headers: { origin: localH.base } });
     assert.equal(sameSite.status, 201);
-    const login403 = await h.api.post("/api/admin/auth/login", { email: ADMIN, password: STAFF_PASSWORD }, { headers: { origin: "https://evil.example" } });
+    const login403 = await localH.api.post("/api/admin/auth/login", { email: ADMIN, password: STAFF_PASSWORD }, { headers: { origin: "https://evil.example" } });
     assert.equal(login403.status, 403);
   });
 
