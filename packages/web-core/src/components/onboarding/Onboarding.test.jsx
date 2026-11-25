@@ -313,42 +313,37 @@ describe("moving through the form", () => {
     expect(field(/Full name/)).toHaveValue("Asha Rao Jr");
   });
 
-  it("Next with missing required answers stays on the section, names each missing field, and keeps what was typed", async () => {
+  it("Next button is disabled when required answers are missing, and enabled once they are all filled", async () => {
     const be = createFakeBackend({ signedIn: true });
     await pickTour(be, "domestic");
+    expect(screen.getByRole("button", { name: "Next section" })).toBeDisabled();
     await user.type(field(/Full name/), "Asha Rao");
-    await next();
-    expect(heading()).toHaveTextContent("Personal details");
     expect(field(/Full name/)).toHaveValue("Asha Rao");
-    expect(field(/Full name/)).not.toHaveAttribute("aria-invalid");
-    for (const label of [/Gender/, /Class & section/, /Date of birth/]) expect(field(label)).toHaveAttribute("aria-invalid", "true");
-    expect(document.getElementById("onb-gender-error")).toHaveTextContent("Gender is required.");
-    expect(document.getElementById("onb-classSection-error")).toHaveTextContent("Class & section is required.");
-    expect(screen.getByRole("alert")).toHaveTextContent(/3 answers? need/i);
-    expect(field(/Gender/)).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Next section" })).toBeDisabled();
+    await fillSection1();
+    expect(screen.getByRole("button", { name: "Next section" })).toBeEnabled();
     expect(be.saves().every((x) => x.body.currentSection === "personal")).toBe(true);
   });
 
-  it("Next with an invalid answer is refused with that field's message", async () => {
+  it("Next button remains disabled when a required field has an invalid value, and the error shows on blur", async () => {
     const be = createFakeBackend({ signedIn: true });
     await pickTour(be, "domestic");
     await user.type(field(/Full name/), "Asha Rao");
     await user.selectOptions(field(/Gender/), "Female");
     await user.type(field(/Class & section/), "4 - B");
     setDate(/Date of birth/, "2999-01-01");
-    await next();
-    expect(heading()).toHaveTextContent("Personal details");
+    expect(screen.getByRole("button", { name: "Next section" })).toBeDisabled();
+    fireEvent.blur(field(/Date of birth/));
     expect(field(/Date of birth/)).toHaveAttribute("aria-invalid", "true");
     expect(document.getElementById("onb-dateOfBirth-error")?.textContent).toBeTruthy();
   });
 
-  it("Next moves on once every required answer in the section is valid, and the error notice goes away", async () => {
+  it("Next becomes enabled once every required answer in the section is valid, then moves to the next section", async () => {
     const be = createFakeBackend({ signedIn: true });
     await pickTour(be, "domestic");
-    await next();
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next section" })).toBeDisabled();
     await fillSection1();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next section" })).toBeEnabled();
     await next();
     expect(heading()).toHaveTextContent("Nominee");
   });
@@ -382,6 +377,18 @@ describe("moving through the form", () => {
     await user.click(step(/Review & submit/));
     expect(heading()).toHaveTextContent("Personal details");
     expect(field(/Full name/)).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("section breadcrumb blocked on incomplete section: alert shows count, all required fields marked invalid, focus moves to first", async () => {
+    const be = createFakeBackend({ signedIn: true });
+    await pickTour(be, "domestic");
+    await user.click(step(/Nominee/));
+    expect(heading()).toHaveTextContent("Personal details");
+    expect(screen.getByRole("alert")).toHaveTextContent(/4 answers need/i);
+    for (const label of [/Full name/, /Gender/, /Class & section/, /Date of birth/]) {
+      expect(field(label)).toHaveAttribute("aria-invalid", "true");
+    }
+    expect(document.activeElement).toBe(field(/Full name/));
   });
 
   it("moves keyboard focus to the new section's heading", async () => {

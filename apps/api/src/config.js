@@ -200,7 +200,7 @@ export function loadConfig(env = process.env) {
     }
     return { access, idle };
   };
-  const parentLife = lifetimes("parent", e.PARENT_ACCESS_TOKEN_TTL_SECONDS, e.PARENT_SESSION_IDLE_TIMEOUT_SECONDS, e.SESSION_TTL_SECONDS, { access: 900, idle: 259200 });
+  const parentLife = lifetimes("parent", e.PARENT_ACCESS_TOKEN_TTL_SECONDS, e.PARENT_SESSION_IDLE_TIMEOUT_SECONDS, e.SESSION_TTL_SECONDS, { access: 900, idle: 900 });
   const staffLife = lifetimes("staff", e.STAFF_ACCESS_TOKEN_TTL_SECONDS, e.STAFF_SESSION_IDLE_TIMEOUT_SECONDS, e.STAFF_SESSION_TTL_SECONDS, { access: 900, idle: 7200 });
 
   // An empty SMTP_* value counts as "not set".

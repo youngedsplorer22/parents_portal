@@ -381,7 +381,7 @@ export default function OnboardingWizard({
               <span>Back</span>
             </button>
             {section !== REVIEW && (
-              <button type="button" className="step-button primary" onClick={() => tryGoTo(steps[index + 1].id)} aria-label="Next section">
+              <button type="button" className="step-button primary" onClick={() => tryGoTo(steps[index + 1].id)} aria-label="Next section" disabled={sectionBad(current).length > 0}>
                 <span>{index === steps.length - 2 ? "Review" : "Next"}</span>
                 <ArrowRight size={18} />
               </button>

@@ -90,9 +90,9 @@ describe("loadConfig", () => {
   });
 
   describe("sign-in lifetimes", () => {
-    it("defaults: 15-minute access tokens; parents 3 days of inactivity / 7 days at most; staff 2 hours / 8 hours; 20 s race grace", () => {
+    it("defaults: 15-minute access tokens; parents 15 minutes of inactivity / 7 days at most; staff 2 hours / 8 hours; 20 s race grace", () => {
       const c = loadConfig(valid);
-      assert.deepEqual([c.auth.accessTtlSeconds, c.auth.idleTimeoutSeconds, c.auth.sessionTtlSeconds, c.auth.reuseGraceSeconds], [900, 259200, 604800, 20]);
+      assert.deepEqual([c.auth.accessTtlSeconds, c.auth.idleTimeoutSeconds, c.auth.sessionTtlSeconds, c.auth.reuseGraceSeconds], [900, 900, 604800, 20]);
       assert.deepEqual([c.staff.accessTtlSeconds, c.staff.idleTimeoutSeconds, c.staff.sessionTtlSeconds, c.staff.reuseGraceSeconds], [900, 7200, 28800, 20]);
     });
 
@@ -106,7 +106,7 @@ describe("loadConfig", () => {
       const c = loadConfig({ ...valid, STAFF_SESSION_TTL_SECONDS: "600" });
       assert.deepEqual([c.staff.accessTtlSeconds, c.staff.idleTimeoutSeconds, c.staff.sessionTtlSeconds], [600, 600, 600]);
       const p = loadConfig({ ...valid, SESSION_TTL_SECONDS: "3600" });
-      assert.deepEqual([p.auth.accessTtlSeconds, p.auth.idleTimeoutSeconds, p.auth.sessionTtlSeconds], [900, 3600, 3600]);
+      assert.deepEqual([p.auth.accessTtlSeconds, p.auth.idleTimeoutSeconds, p.auth.sessionTtlSeconds], [900, 900, 3600]);
     });
 
     it("refuses limits that don't nest (access <= inactivity <= absolute) or are out of range", () => {
