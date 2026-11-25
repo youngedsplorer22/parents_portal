@@ -208,7 +208,10 @@ describe("the API does not need a frontend build to start (it is deployed on its
     const command = JSON.parse(readFileSync(new URL("railway/api.json", root), "utf8")).deploy.startCommand;
     const port = await freePort();
     // The start command runs through a shell, with the service's variables already in the environment (here a wrong one).
-    const child = spawn("sh", ["-c", command], { cwd: root, env: { PATH: process.env.PATH, ...local(port, { SERVE_FRONTEND: "true", FRONTEND_DIST: MISSING }) }, stdio: ["ignore", "pipe", "pipe"] });
+    // detached: true places sh and the Node server it spawns in a new process group (pgid = child.pid) so the whole
+    // tree can be killed at once — without it, killing sh leaves an orphaned Node process holding the stdio pipes open
+    // and the test runner never exits.
+    const child = spawn("sh", ["-c", command], { cwd: root, env: { PATH: process.env.PATH, ...local(port, { SERVE_FRONTEND: "true", FRONTEND_DIST: MISSING }) }, stdio: ["ignore", "pipe", "pipe"], detached: true });
     let out = "";
     const up = new Promise((resolve) => {
       child.stdout.on("data", (d) => ((out += d), /Parents Portal backend on/.test(out) && resolve(true)));
@@ -221,8 +224,37 @@ describe("the API does not need a frontend build to start (it is deployed on its
       assert.doesNotMatch(out, MISSING_MSG);
       assert.equal(await get("127.0.0.1", port), 200);
     } finally {
-      child.kill("SIGTERM");
-      await new Promise((r) => (child.exitCode !== null ? r() : child.once("exit", r)));
+      // Signal the whole process group (sh + Node server). process.kill(-pid) targets the pgid.
+      try { process.kill(-child.pid, "SIGTERM"); } catch { /* already gone */ }
+      await new Promise((r) => {
+        let done = false;
+        const resolve = () => { if (!done) { done = true; r(); } };
+
+        // 'close' fires only after every process holding a write end of the stdio pipes has exited.
+        // Waiting for it (not 'exit') is what guarantees no orphan keeps a pipe handle open.
+        let hardCapTimer = null;
+        const sigkillTimer = setTimeout(() => {
+          // Process tree did not exit cleanly in 5 s — escalate to SIGKILL.
+          try { process.kill(-child.pid, "SIGKILL"); } catch { /* already gone */ }
+          // SIGKILL forces immediate kernel cleanup; 'close' should follow within milliseconds.
+          // A 2 s hard cap after SIGKILL ensures the test can never hang indefinitely.
+          hardCapTimer = setTimeout(() => {
+            // Hard cap fired before 'close': stdio pipes may still be open. Report and force-close them.
+            // SIGKILL was already sent above. Destroying the streams unblocks the test runner.
+            process.stderr.write("[server-start test] cleanup hard cap: 'close' did not fire after SIGKILL\n");
+            if (child.stdout && !child.stdout.destroyed) child.stdout.destroy();
+            if (child.stderr && !child.stderr.destroyed) child.stderr.destroy();
+            resolve();
+          }, 2000);
+        }, 5000);
+
+        // When 'close' fires: clear both timers, then resolve once.
+        child.once("close", () => {
+          clearTimeout(sigkillTimer);
+          clearTimeout(hardCapTimer);
+          resolve();
+        });
+      });
     }
   });
 });
