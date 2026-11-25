@@ -162,17 +162,36 @@ describe("Sales through the Sales portal", () => {
 });
 
 describe("what a portal will not forward", () => {
-  it("Sales routes through a public portal, and parent routes through the Sales portal, never reach the API", async () => {
+  it("allowlisted Sales routes through a public portal reach the API; unallowlisted admin and parent routes remain blocked", async () => {
     const { email, password } = await h.makeStaff({ email: "sales@example.com" });
-    const viaPublic = await publicSite.post("/api/admin/auth/login", { email, password });
-    assert.equal(viaPublic.status, 404);
-    assert.deepEqual(viaPublic.body, { error: { code: "NOT_FOUND", message: "Not found." } });
-    assert.equal(viaPublic.setCookie.length, 0, "no Sales sign-in happened");
-    assert.equal((await publicSite.get("/api/admin/itinerary/trips")).status, 404);
 
+    // Allowlisted Sales routes reach the API through the public portal (staff UI ships in every public build)
+    const viaPublic = await publicSite.post("/api/admin/auth/login", { email, password });
+    assert.notEqual(viaPublic.status, 404, "POST /api/admin/auth/login is allowlisted for public portals");
+    assert.equal(viaPublic.status, 200, "valid credentials log the sales user in through the public portal");
+    assert.ok(viaPublic.setCookie.some((c) => c.startsWith("pp_staff_access=")), "Sales session cookie is set through the public portal");
+    const salesCookie = viaPublic.setCookie.find((c) => c.startsWith("pp_staff_access=")).split(";")[0];
+    const trips = await publicSite.get("/api/admin/itinerary/trips", { cookie: salesCookie });
+    assert.notEqual(trips.status, 404, "GET /api/admin/itinerary/trips is allowlisted for public portals");
+    assert.equal(trips.status, 200);
+
+    // Unallowlisted admin-management routes remain blocked on the public portal
+    assert.equal((await publicSite.get("/api/admin/schools")).status, 404, "admin schools not in allowlist");
+    assert.equal((await publicSite.get("/api/admin/trips")).status, 404, "admin trips list not in allowlist");
+    assert.equal((await publicSite.get(`/api/admin/trips/${UUID}`)).status, 404, "admin trip detail not in allowlist");
+    assert.equal((await publicSite.post("/api/admin/schools", { name: "x" })).status, 404, "school create not in allowlist");
+
+    // Wrong methods on allowlisted Sales routes are still blocked on the public portal
+    assert.equal((await publicSite.get("/api/admin/auth/login")).status, 404, "GET not allowed on POST-only login route");
+    assert.equal((await publicSite.post("/api/admin/auth/session", {})).status, 404, "POST not allowed on GET-only session route");
+    assert.equal((await publicSite.get(`/api/admin/trips/${UUID}/itinerary/${UUID}`)).status, 404, "GET not allowed on PATCH-only itinerary item route");
+
+    // Parent routes through the Sales portal remain blocked
     assert.equal((await staffSite.post("/api/auth/login", { email: "a@b.test", verificationToken: "x" })).status, 404);
     assert.equal((await staffSite.post("/api/email-otp/send", { email: "a@b.test", purpose: "login" })).status, 404);
     assert.equal((await staffSite.get("/api/join/a/b/c")).status, 404);
+
+    // Health and non-portal routes remain blocked on both portals
     assert.equal((await publicSite.get("/api/health/ready")).status, 404);
     assert.equal((await staffSite.get("/api/health/ready")).status, 404);
   });
