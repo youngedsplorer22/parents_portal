@@ -95,12 +95,12 @@ So any proxy in front of the backend must pass the browser's Host through unchan
   verification in `docs/CLIENT-IP-STAGING-VERIFICATION.md`; that verification has not been done. The web server refuses to start in
   production without a valid value. An address that is not exactly one valid IP falls back to the connecting address, never to
   another entry. Do not test any of this by sending forged headers to a real endpoint such as a sign-in route.
-- **What a portal forwards.** A portal's web server forwards only the calls its own website makes, by exact method and path (public
-  portals: the parent calls; the Sales portal: Sales sign-in, password and itinerary). Everything else, including `/api/admin/*` on a
-  public portal, parent routes on the Sales portal, `/api/mobile/*` and `/api/health*` on any portal, the enrolment list
-  (`GET /api/enrolments`), discarding a draft (`DELETE /api/onboarding`) and any other method or address, is answered with a JSON 404
-  by the web server and never reaches the API. The mobile routes stay in the API for later. The full lists are in
-  `apps/web-server/src/api-policy.js`.
+- **What a portal forwards.** A portal's web server forwards only the calls its own website makes, by exact method and path. The Sales
+  UI ships in every public portal build (`__HAS_STAFF__=true`), so public portals forward the parent calls **and** the 13 Sales routes
+  (Sales sign-in, password, session, refresh, logout, itinerary). The staff-only build (`PORTAL_ROLE=staff`) forwards only the same
+  13 Sales routes. Everything else — `/api/mobile/*`, `/api/health*`, the enrolment list (`GET /api/enrolments`), discarding a draft
+  (`DELETE /api/onboarding`) and any other method or address — is answered with a JSON 404 by the web server and never reaches the
+  API. The mobile routes stay in the API for later. The full lists are in `apps/web-server/src/api-policy.js`.
 - **Host header and request bodies (portal web servers).** A request must carry exactly one well-formed `Host` header (a host name,
   IPv4 address or bracketed IPv6 address, with an optional port); a missing, empty, repeated, comma-containing or malformed one gets a
   JSON 400 before anything is served or forwarded (`/healthz` alone answers whatever the `Host`). A request body larger than the
@@ -128,6 +128,33 @@ So any proxy in front of the backend must pass the browser's Host through unchan
     otherwise show a link to itself, which does not work.
   - **If none of the five is set** the API gives no full address and the staff panel shows its own origin plus the registration
     path. That is only correct for a single combined site; with separately deployed portals it is a broken link, so set them.
+
+## Core business model: one deployment = one school + one trip
+
+Each customised deployment represents exactly one school and one trip. This is a deliberate architectural constraint, not a
+limitation. It is worth stating explicitly because it rules out several patterns that might otherwise seem natural:
+
+**What is true:**
+- Developers customise the application for a specific school and trip before each deployment: `src/deployment.config.js` names
+  the school, trip, destination, logo and other trip-specific values.
+- Parents and students access that deployment to register for the trip it was built for.
+- The Sales interface ships in the same deployment (every public portal build includes the Sales UI). Sales logs in at `/sales`
+  and immediately manages the itinerary for that deployment's configured trip — no selection step, no assignment workflow.
+- Parent registrations and Sales itinerary management both resolve the trip from `portal_deployments`, which the developer binds
+  with `npm run ops -- portal:bind`. They operate on the same canonical trip record and trip ID.
+- Different independent deployments remain isolated: a Sales user of one deployment cannot see or edit another deployment's trip
+  or itinerary. The API enforces this at every request.
+
+**What is not part of this product:**
+- A multi-trip Sales management system where Sales selects from multiple schools or trips.
+- A mandatory many-to-many Sales-to-trip assignment workflow. The `staff_trip_assignments` table exists in the schema but is not
+  checked by the Sales itinerary access control; `portal_deployments` is the sole authority.
+- A separate Sales portal or additional Railway service (Sales can use the public portal's URL and the `/sales` path).
+- Duplicate trip records for the same school and trip across deployments.
+
+**Deployment isolation is enforced by the server, not by the website.** Each portal sends its `PORTAL_PROXY_SECRET`; the API
+matches it to a template key, looks up `portal_deployments`, and returns only that one trip. A Sales user authenticated against
+one deployment cannot name a trip from another deployment and get access; the same 403 is returned whether the trip exists or not.
 
 ## Preparing a portal for a school (the developer's workflow)
 
@@ -230,9 +257,23 @@ settings, that override must keep `PORTAL_ROLE`.
 
 ### Sales and itineraries
 A Sales person is an exact email address a developer added (`npm run ops -- sales:allow`); only that address can set a password (by an
-emailed code) and sign in. They see only the trips assigned to them (`sales:assign`; many trips per person and many people per trip are
-allowed) and can only add and edit itinerary items. Everything else under `/api/admin` does not exist (404). Participants read their own
-trip's itinerary, read-only, from the Itinerary section of their dashboard.
+emailed code) and sign in. When Sales logs in, they see the **one trip the deployment is configured for** — the same trip parents
+register for on that portal — and can add and edit itinerary items for it. No manual trip assignment is required. Everything else
+under `/api/admin` does not exist (404). Participants read their own trip's itinerary, read-only, from the Itinerary section of their
+dashboard.
+
+**How the deployment trip is resolved.** The API looks up `portal_deployments` to find the trip. It resolves the template key by two
+mechanisms, in priority order:
+1. **Portal key** (`x-portal-key` header, set by the public portal web server on every request it forwards). The API matches it
+   against the configured `PORTAL_PROXY_SECRET_<TEMPLATE>` variables to find the template key, then looks up `portal_deployments`.
+   This is the mechanism used by combined public+staff deployments: no extra env var is needed on the API.
+2. **`STAFF_DEPLOYMENT_TEMPLATE_KEY`** env var (optional). Set to one of the four template keys for a staff-only deployment
+   (`PORTAL_ROLE=staff`) where no portal web server sends a portal key. If neither mechanism yields a template key, the trip list
+   is empty and Sales sees "No trip is configured for this portal yet."
+
+**Parent registrations and Sales itinerary management use the same canonical trip identity.** The parent portal resolves the trip
+through the portal key → `portal_deployments` path; Sales resolves the same trip through the same table, via the same portal key
+(for public portals) or the env var (for staff-only portals). They are always the same row.
 
 ### Removing the old admin accounts (once, per database)
 `npm run ops -- admin:remove` lists the old admin accounts and what points at them (a dry run). `--apply --confirm <database name>` deletes
@@ -375,7 +416,7 @@ without it, and an unbound portal, or a portal whose bound trip is not open, nev
    does not say how you reach such a shell, so check that route in staging first. **In the staging project** use `--staging` instead of
    `--production` (and `npm run migrate:staging` instead of `migrate:production`): it has its own variables (`STAGING_DATABASE_URL`,
    `ALLOW_STAGING_DATABASE=true`, `STAGING_CONFIRM_DATABASE=railway`, `STAGING_RAILWAY_PROJECT_ID`) and never uses the production ones (`docs/DEVELOPER-CLI.md`). At this step also add the Sales people
-   (`sales:allow`, `sales:assign`) and, if the database has any old admin accounts, remove them once (*Removing the old admin accounts*:
+   (`sales:allow`) and, if the database has any old admin accounts, remove them once (*Removing the old admin accounts*:
    dry run first, and only after step 3).
 6. **Prepare and deploy each portal service**, each with its own file in `railway/`: its `src/deployment.config.js` must name the trip you
    bound in step 5 (*Preparing a portal for a school*), and its build must pass. Set `PORTAL_PROXY_SECRET` (the same value as that
@@ -387,7 +428,7 @@ without it, and an unbound portal, or a portal whose bound trip is not open, nev
    `portal:bind`, then `trip:open` (see *Switching a portal from school A to school B*).
 7. **Verify, with registrations still closed:** the API readiness check and every portal's `/healthz`; each portal's trip page says
    registration is closed; `portal:status` shows the right trip for each portal; a Sales person can set a password with the emailed
-   code, sign in, see only their assigned trips and edit an itinerary item; and, if participants already exist, one can still sign in
+   code, sign in, see the deployment's configured trip and edit an itinerary item; and, if participants already exist, one can still sign in
    and see their dashboard.
 8. **Verify the registration workflow end to end** before any public use: emailed code, save and resume, submit, PDF generated and
    stored in Google Drive, payment status (paid portals), and the dashboard sections (Personal Details, Payment Status, Insurance,

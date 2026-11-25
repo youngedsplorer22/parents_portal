@@ -18,15 +18,15 @@ export function createItineraryRouter({ service }) {
   const router = express.Router();
   const sales = requireRole("sales");
 
-  router.get("/itinerary/trips", sales, async (req, res) => res.json({ trips: await service.listTrips(req.staff) }));
-  router.get("/trips/:tripId/itinerary", sales, async (req, res) => res.json({ items: await service.listItems(req.staff, req.params.tripId) }));
+  router.get("/itinerary/trips", sales, async (req, res) => res.json({ trips: await service.listTrips(req.staff, req.portal?.templateKey ?? null) }));
+  router.get("/trips/:tripId/itinerary", sales, async (req, res) => res.json({ items: await service.listItems(req.staff, req.params.tripId, req.portal?.templateKey ?? null) }));
   router.post("/trips/:tripId/itinerary", sales, async (req, res) => {
     const input = parseBody(itemCreateSchema, req.body);
-    res.status(201).json({ item: await service.addItem(req.staff, req.params.tripId, input) });
+    res.status(201).json({ item: await service.addItem(req.staff, req.params.tripId, input, req.portal?.templateKey ?? null) });
   });
   router.patch("/trips/:tripId/itinerary/:itemId", sales, async (req, res) => {
     const patch = parseBody(itemUpdateSchema, req.body);
-    res.json({ item: await service.updateItem(req.staff, req.params.tripId, req.params.itemId, patch) });
+    res.json({ item: await service.updateItem(req.staff, req.params.tripId, req.params.itemId, patch, req.portal?.templateKey ?? null) });
   });
   return router;
 }

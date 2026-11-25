@@ -19,29 +19,33 @@ const ITEM_COLUMNS = "id, trip_id, day_number, position, title, details, created
 /**
  * The itinerary, for Sales. Who may do what is decided HERE, from req.staff (set by requireStaff, never from the request):
  * a Sales user may read and write the itinerary of the ONE trip the deployment is configured for (portal_deployments),
- * and nothing else. The trip is resolved from the server-side deploymentTemplateKey config — never from the request.
+ * and nothing else. The trip is resolved from either the portal key (set by portalIdentity middleware on the request,
+ * i.e. for combined public+staff deployments) or the deploymentTemplateKey config (for staff-only deployments).
  * A Sales user asking for a trip that is not the deployment's trip (or one that does not exist) gets the same 403,
  * so the answer does not reveal which trips exist. (Portal bindings are developer commands: operations.js.)
  */
 export function createItineraryService({ db, deploymentTemplateKey = null }) {
-  /** Returns the trip_id the deployment is currently configured for, or null if not configured / not bound. */
-  async function resolveDeploymentTrip(q) {
-    if (!deploymentTemplateKey) return null;
-    const { rows } = await q.query("SELECT trip_id FROM portal_deployments WHERE template_key = $1", [deploymentTemplateKey]);
+  /** Returns the trip_id the deployment is currently configured for, or null if not configured / not bound.
+   * `portalTemplateKey` (from req.portal, set by portalIdentity from x-portal-key) takes precedence over
+   * the deploymentTemplateKey env var, so combined public+staff deployments need no extra env var. */
+  async function resolveDeploymentTrip(q, portalTemplateKey = null) {
+    const templateKey = portalTemplateKey ?? deploymentTemplateKey;
+    if (!templateKey) return null;
+    const { rows } = await q.query("SELECT trip_id FROM portal_deployments WHERE template_key = $1", [templateKey]);
     return rows[0]?.trip_id ?? null;
   }
 
   /** Throws unless `actor` is a Sales user and `tripId` matches the deployment-configured trip. Unknown, malformed and
    * non-deployment trips all give the same 403, so the answer does not reveal which trips exist. */
-  async function authorizeTrip(q, actor, tripId) {
+  async function authorizeTrip(q, actor, tripId, portalTemplateKey = null) {
     if (actor?.role !== "sales" || typeof tripId !== "string" || !UUID.test(tripId)) throw forbiddenError();
-    const deployedTripId = await resolveDeploymentTrip(q);
+    const deployedTripId = await resolveDeploymentTrip(q, portalTemplateKey);
     if (!deployedTripId || deployedTripId !== tripId) throw forbiddenError();
   }
 
-  async function listTrips(actor) {
+  async function listTrips(actor, portalTemplateKey = null) {
     if (actor?.role !== "sales") throw forbiddenError();
-    const tripId = await resolveDeploymentTrip(db);
+    const tripId = await resolveDeploymentTrip(db, portalTemplateKey);
     if (!tripId) return [];
     const { rows } = await db.query(
       `SELECT t.id, t.title, t.destination, t.academic_year, t.tour_type, t.status, s.name AS school_name, s.branch AS school_branch,
@@ -56,15 +60,15 @@ export function createItineraryService({ db, deploymentTemplateKey = null }) {
     }));
   }
 
-  async function listItems(actor, tripId) {
-    await authorizeTrip(db, actor, tripId);
+  async function listItems(actor, tripId, portalTemplateKey = null) {
+    await authorizeTrip(db, actor, tripId, portalTemplateKey);
     const { rows } = await db.query(`SELECT ${ITEM_COLUMNS} FROM trip_itinerary_items WHERE trip_id = $1 ORDER BY day_number, position, created_at, id`, [tripId]);
     return rows.map(itemView);
   }
 
-  async function addItem(actor, tripId, input) {
+  async function addItem(actor, tripId, input, portalTemplateKey = null) {
     return withTransaction(db, async (client) => {
-      await authorizeTrip(client, actor, tripId);
+      await authorizeTrip(client, actor, tripId, portalTemplateKey);
       const { rows } = await client.query(
         `INSERT INTO trip_itinerary_items (trip_id, day_number, position, title, details, created_by, updated_by)
          VALUES ($1, $2, $3, $4, $5, $6, $6) RETURNING ${ITEM_COLUMNS}`,
@@ -75,9 +79,9 @@ export function createItineraryService({ db, deploymentTemplateKey = null }) {
     });
   }
 
-  async function updateItem(actor, tripId, itemId, patch) {
+  async function updateItem(actor, tripId, itemId, patch, portalTemplateKey = null) {
     return withTransaction(db, async (client) => {
-      await authorizeTrip(client, actor, tripId);
+      await authorizeTrip(client, actor, tripId, portalTemplateKey);
       if (typeof itemId !== "string" || !UUID.test(itemId)) throw notFoundError();
       // The item must belong to THIS trip: the trip in the URL is what was authorised.
       const { rows: found } = await client.query("SELECT * FROM trip_itinerary_items WHERE id = $1 AND trip_id = $2 FOR UPDATE", [itemId, tripId]);

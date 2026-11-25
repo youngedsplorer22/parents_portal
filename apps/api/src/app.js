@@ -95,7 +95,7 @@ export function createApp({ db, sender, config, clock, generateCode, logger, ren
   app.use(enrolments.mountPath, portalIdentity, enrolments.router);
   app.use(liveLocation.mountPath, liveLocation.router);
   app.use(mobile.mountPath, mobile.router);
-  app.use("/api/admin", admin);
+  app.use("/api/admin", portalIdentity, admin);
   app.use("/api/join", catalog.joinRouter);
   app.use("/api/school-logos", catalog.logoRouter);
 
