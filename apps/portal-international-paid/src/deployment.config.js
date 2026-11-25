@@ -19,13 +19,16 @@
 // stops working as soon as the previous trip is closed, even before this site is redeployed.
 // import abcJaipurLogo from "./school-logos/abc-school-jaipur.png";
 
+// Staging demo configuration — International Paid variant.
+// School and trip details are dummy data for the demo deployment only.
+
 export default {
-  school: "",
-  branch: "",
-  trip: "",
-  schoolName: "",
-  tripTitle: "",
-  destination: "",
+  school: "staging-demo-school",
+  branch: "bengaluru",
+  trip: "international-paid-staging-test-2027",
+  schoolName: "Staging Demo School",
+  tripTitle: "International Paid Staging Test 2027",
+  destination: "Singapore",
   logo: null,
   schoolLogos: {
     // "abc-school/jaipur": abcJaipurLogo,
