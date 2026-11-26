@@ -27,7 +27,7 @@ export default {
   branch: "mumbai",
   trip: "domestic-free-staging-test-2027",
   schoolName: "Staging Demo School",
-  tripTitle: "Domestic Non-Paid Staging Test 2027",
+  tripTitle: "Domestic Free Staging Test 2027",
   destination: "Shimla",
   logo: null,
   schoolLogos: {

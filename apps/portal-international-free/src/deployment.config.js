@@ -27,7 +27,7 @@ export default {
   branch: "chennai",
   trip: "international-free-staging-test-2027",
   schoolName: "Staging Demo School",
-  tripTitle: "International Non-Paid Staging Test 2027",
+  tripTitle: "International Free Staging Test 2027",
   destination: "Dubai",
   logo: null,
   schoolLogos: {

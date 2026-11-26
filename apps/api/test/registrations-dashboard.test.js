@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { after, afterEach, beforeEach, describe, it } from "node:test";
 import { slugify } from "../src/modules/catalog/slug.js";
+import domesticFreeConfig from "../../portal-domestic-free/src/deployment.config.js";
+import domesticPaidConfig from "../../portal-domestic-paid/src/deployment.config.js";
+import internationalFreeConfig from "../../portal-international-free/src/deployment.config.js";
+import internationalPaidConfig from "../../portal-international-paid/src/deployment.config.js";
 import { startApp, validAnswers } from "./harness.js";
 import { ACK, createTestPool, registrationFields, resetTables, slugsOf } from "./helpers.js";
 
@@ -51,6 +55,12 @@ describe("public page addresses", () => {
     for (const [input, out] of cases) assert.equal(slugify(input), out, input);
     assert.ok(slugify("x".repeat(200)).length <= 60);
     assert.equal(slugify("", "trip"), "trip");
+  });
+
+  it("each portal's tripTitle produces exactly the trip slug in its deployment.config.js", () => {
+    for (const config of [domesticPaidConfig, domesticFreeConfig, internationalPaidConfig, internationalFreeConfig]) {
+      assert.equal(slugify(config.tripTitle), config.trip, `${config.trip}: slugify("${config.tripTitle}") !== "${config.trip}"`);
+    }
   });
 
   it("a trip's address reads /join/<school>/<branch>/<trip> and finds exactly that trip", async () => {
