@@ -38,7 +38,7 @@ describe("the Sales portal is itinerary only", () => {
     salesWorld();
     at("/sales");
     await screen.findByRole("heading", { name: "Sales dashboard" });
-    expect(within(nav()).getAllByRole("link").map((a) => a.textContent.trim())).toEqual(["Dashboard", "My itineraries"]);
+    expect(within(nav()).getAllByRole("link").map((a) => a.textContent.trim())).toEqual(["Dashboard", "My itineraries", "Manage trip"]);
     expect(screen.queryByRole("link", { name: /Create a tour/ })).not.toBeInTheDocument();
   });
 

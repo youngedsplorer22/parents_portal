@@ -82,6 +82,33 @@ export function createFakeAdmin({ role = "sales", signedIn = true, schools = [],
       Object.assign(item, b, { updatedAt: new Date().toISOString() });
       return reply(200, { item });
     })],
+    ["GET", /^\/api\/admin\/trips\/([^/]+)\/school-logo$/, needStaff((m) => {
+      if (!canItinerary(m[1])) return apiError(403, "FORBIDDEN");
+      return reply(200, { logoUrl: null });
+    })],
+    ["PUT", /^\/api\/admin\/trips\/([^/]+)\/school-logo$/, needStaff((m) => {
+      if (!canItinerary(m[1])) return apiError(403, "FORBIDDEN");
+      return reply(200, { logoUrl: "/logos/school.png?v=1" });
+    })],
+    ["GET", /^\/api\/admin\/trips\/([^/]+)\/documents$/, needStaff((m) => {
+      if (!canItinerary(m[1])) return apiError(403, "FORBIDDEN");
+      return reply(200, { documents: state.documents?.[m[1]] ?? [] });
+    })],
+    ["POST", /^\/api\/admin\/trips\/([^/]+)\/documents$/, needStaff((m, b) => {
+      if (!canItinerary(m[1])) return apiError(403, "FORBIDDEN");
+      const doc = { id: id(), tripId: m[1], documentType: "itinerary", displayName: "file.pdf", mimeType: "application/pdf", sizeBytes: 100, uploadedAt: new Date().toISOString() };
+      (state.documents ??= {})[m[1]] ??= [];
+      state.documents[m[1]].push(doc);
+      return reply(201, { document: doc });
+    })],
+    ["DELETE", /^\/api\/admin\/trips\/([^/]+)\/documents\/([^/]+)$/, needStaff((m) => {
+      if (!canItinerary(m[1])) return apiError(403, "FORBIDDEN");
+      const list = state.documents?.[m[1]] ?? [];
+      const idx = list.findIndex((d) => d.id === m[2]);
+      if (idx === -1) return apiError(404, "DOCUMENT_NOT_FOUND");
+      list.splice(idx, 1);
+      return reply(200, { deleted: true });
+    })],
     ["POST", /^\/api\/admin\/auth\/password\/(request|resend)$/, () => reply(200, { expiresInSeconds: 900, resendAvailableInSeconds: 30, delivery: "smtp", alreadySent: false })],
     ["POST", /^\/api\/admin\/auth\/password\/verify$/, (m, b) =>
       b.code === "123456" ? reply(200, { verified: true, verificationToken: "STAFFVERIFYTOKEN", verificationTokenExpiresInSeconds: 900 }) : apiError(400, "INVALID_CODE", { attemptsRemaining: 4 })],
@@ -112,8 +139,8 @@ export function createFakeAdmin({ role = "sales", signedIn = true, schools = [],
     state.calls.push({ method, url, body, key: `${method} ${url}`, headers: init.headers });
     const queued = state.queued[`${method} ${url}`]?.shift();
     if (queued !== undefined) return typeof queued === "function" ? queued(body) : queued;
-    // Like the server: a Sales account reaches the itinerary routes and its own sign-in routes, and nothing else under /api/admin.
-    if (state.signedIn && state.staff.role === "sales" && url.startsWith("/api/admin/") && !/^\/api\/admin\/(auth\/|itinerary\/trips$|trips\/[^/]+\/itinerary(\/[^/]+)?$)/.test(url)) return apiError(403, "FORBIDDEN");
+    // Like the server: a Sales account reaches the itinerary routes, trip-documents, school-logo routes, and its own sign-in routes.
+    if (state.signedIn && state.staff.role === "sales" && url.startsWith("/api/admin/") && !/^\/api\/admin\/(auth\/|itinerary\/trips$|trips\/[^/]+\/(itinerary(\/[^/]+)?|documents(\/[^/]+)?|school-logo)$)/.test(url)) return apiError(403, "FORBIDDEN");
     if (state.accessExpired && url.startsWith("/api/admin/") && !/^\/api\/admin\/auth\/(login|logout|refresh|password\/)/.test(url)) return apiError(401, "UNAUTHENTICATED");
     for (const [m, pattern, fn] of routes) {
       const match = m === method && pattern.exec(url);
