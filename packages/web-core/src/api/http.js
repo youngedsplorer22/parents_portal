@@ -117,7 +117,10 @@ export async function request(method, url, { body, signal } = {}) {
     const error = data?.error;
     throw new ApiError(error?.code ?? "SERVER_ERROR", { status: response.status, details: error ?? {} });
   }
-  if (data === null || typeof data !== "object") throw new ApiError("SERVER_ERROR", { status: response.status });
+  if (data === null || typeof data !== "object") {
+    if (response.status === 204) return {};
+    throw new ApiError("SERVER_ERROR", { status: response.status });
+  }
   return data;
 }
 
@@ -133,3 +136,36 @@ export const getJson = (url, signal) => request("GET", url, { signal });
 export const putJson = (url, body, signal) => request("PUT", url, { body, signal });
 export const patchJson = (url, body, signal) => request("PATCH", url, { body, signal });
 export const deleteJson = (url, signal) => request("DELETE", url, { signal });
+
+/**
+ * Sends raw (non-JSON) bytes; resolves to the parsed 2xx JSON body, or throws ApiError / AbortError.
+ * Used for file uploads where the body is binary (images, PDFs) and metadata is in query parameters or headers.
+ */
+export async function rawRequest(method, url, { body, contentType, signal } = {}) {
+  let response;
+  try {
+    response = await apiFetch(url, {
+      method,
+      headers: { Accept: "application/json", "Content-Type": contentType },
+      body,
+      credentials: "same-origin",
+      cache: "no-store",
+      signal,
+    });
+  } catch (err) {
+    if (err?.name === "AbortError") throw err;
+    throw new ApiError("NETWORK_ERROR");
+  }
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    /* empty body */
+  }
+  if (!response.ok) {
+    const error = data?.error;
+    throw new ApiError(error?.code ?? "SERVER_ERROR", { status: response.status, details: error ?? {} });
+  }
+  if (data === null || typeof data !== "object") throw new ApiError("SERVER_ERROR", { status: response.status });
+  return data;
+}

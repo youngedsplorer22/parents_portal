@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { KeyRound, LayoutDashboard, ListChecks, LoaderCircle, LogOut } from "lucide-react";
+import { Briefcase, KeyRound, LayoutDashboard, ListChecks, LoaderCircle, LogOut } from "lucide-react";
 import { adminErrorMessage, getStaffSession, staffLogout } from "./adminApi.js";
 import ChangePasswordPage from "./ChangePasswordPage.jsx";
 import SalesLogin from "./SalesLogin.jsx";
 import ItineraryListPage from "./ItineraryListPage.jsx";
 import ItineraryPage from "./ItineraryPage.jsx";
 import DashboardPage from "./DashboardPage.jsx";
+import ManageTripPage from "./ManageTripPage.jsx";
 import StaffAuthLayout from "./StaffAuthLayout.jsx";
 import StaffPasswordFlow from "./StaffPasswordFlow.jsx";
 import { PORTALS, StaffContext, homeOf, useStaff } from "./staffContext.js";
@@ -125,6 +126,7 @@ function Shell({ onSignedOut }) {
           <nav aria-label={`${info.name} sections`} className="admin-nav">
             <SectionLink to={`${base}/dashboard`} icon={LayoutDashboard}>Dashboard</SectionLink>
             <SectionLink to={`${base}/itineraries`} also={[`${base}/itineraries`]} icon={ListChecks}>My itineraries</SectionLink>
+            <SectionLink to={`${base}/manage`} icon={Briefcase}>Manage trip</SectionLink>
           </nav>
           <div className="admin-account" role="group" aria-label="Your account">
             <div className="admin-who">
@@ -146,6 +148,7 @@ function Shell({ onSignedOut }) {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="itineraries" element={<ItineraryListPage />} />
           <Route path="itineraries/:tripId" element={<ItineraryPage />} />
+          <Route path="manage" element={<ManageTripPage />} />
           <Route path="password" element={<ChangePasswordPage />} />
           <Route path="*" element={<NotFound base={base} />} />
         </Routes>

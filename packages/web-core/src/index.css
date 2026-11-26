@@ -2070,6 +2070,40 @@ button {
 @media (max-width: 480px) { .admin-itinerary-item .admin-button { width: 100%; justify-content: center; } }
 .admin-row > select.admin-input { width: auto; flex: 1 1 240px; max-width: 420px; }
 
+/* Manage Trip tabs */
+.admin-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 18px; border-bottom: 2px solid var(--line); padding-bottom: 0; }
+.admin-tab { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; border-radius: var(--radius, 8px) var(--radius, 8px) 0 0; margin-bottom: -2px; border-bottom: 2px solid transparent; white-space: nowrap; }
+.admin-tab:hover { color: var(--ink); background: var(--brand-soft); }
+.admin-tab.is-active { color: var(--brand-ink); border-bottom-color: var(--brand); background: none; }
+.admin-tab:focus-visible { outline: 3px solid rgba(35, 100, 232, 0.35); outline-offset: 2px; }
+@media (max-width: 540px) { .admin-tabs { gap: 2px; } .admin-tab { padding: 7px 11px; font-size: 13px; } }
+
+/* Document list */
+.admin-doc-list { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 10px; }
+.admin-doc-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg, 12px); background: var(--surface); flex-wrap: wrap; }
+.admin-doc-icon { flex-shrink: 0; color: var(--brand); margin-top: 2px; }
+.admin-doc-info { flex: 1 1 160px; min-width: 0; }
+.admin-doc-name { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.admin-doc-meta { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.admin-doc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.admin-doc-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+.admin-doc-empty { margin: 0 0 10px; }
+
+/* Logo preview */
+.admin-logo-preview { margin: 10px 0 14px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-lg, 12px); background: var(--surface); display: inline-flex; }
+.admin-logo-preview img { max-width: 220px; max-height: 100px; object-fit: contain; display: block; }
+
+/* File upload label (wraps hidden <input type=file>) */
+.admin-upload-label { display: inline-block; cursor: pointer; }
+.admin-upload-label input.admin-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.admin-upload-label .admin-button[aria-disabled="true"] { pointer-events: none; opacity: 0.65; }
+
+/* Danger variants */
+.admin-button-danger { background: var(--danger, #dc2626); color: #fff; border-color: var(--danger, #dc2626); }
+.admin-button-danger:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
+.admin-button-ghost-danger { color: var(--danger, #dc2626); border-color: #fecaca; background: #fff; }
+.admin-button-ghost-danger:hover:not(:disabled) { background: #fff1f1; }
+
 /* Participant itinerary (dashboard) */
 .itinerary-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; max-width: 760px; }
 .itinerary-item { border: 1px solid var(--line); border-radius: var(--radius-lg, 12px); padding: 14px 16px; background: var(--surface); }

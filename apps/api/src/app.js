@@ -11,6 +11,7 @@ import { createDriveClient } from "./modules/pdf-storage/drive-client.js";
 import { createCatalogModule } from "./modules/catalog/index.js";
 import { createEnrolmentsModule } from "./modules/enrolments/index.js";
 import { createItineraryModule } from "./modules/itinerary/index.js";
+import { createTripDocumentsModule } from "./modules/trip-documents/index.js";
 import { createLiveLocationModule } from "./modules/live-location/index.js";
 import { createMobileModule } from "./modules/mobile/index.js";
 import { createEmailOtpModule } from "./modules/email-otp/index.js";
@@ -55,6 +56,7 @@ export function createApp({ db, sender, config, clock, generateCode, logger, ren
   // works without it. `driveEndpoints` lets tests point the client at a fake Drive; production uses Google's own hosts.
   const pdfStorage = config.pdfStorage ?? { mode: "disabled", drive: null, missing: [], rootName: "Young Edsplorer" };
   const drive = pdfStorage.drive ? createDriveClient({ ...pdfStorage.drive, ...driveEndpoints }) : null;
+  const tripDocuments = createTripDocumentsModule({ db, drive, deploymentTemplateKey: config.staff?.deploymentTemplateKey ?? null, rootName: pdfStorage.rootName });
   const onboarding = createOnboardingModule({
     db, requireSession: requireSession(auth.service), renderPdf, logger, pdfRendering: config.pdfRendering,
     drive, driveRootName: pdfStorage.rootName, pdfStorageNote: { mode: pdfStorage.mode, missing: pdfStorage.missing }, limits: pdfLimits,
@@ -78,6 +80,7 @@ export function createApp({ db, sender, config, clock, generateCode, logger, ren
   // those are developer commands (scripts/ops.js). Any other address under /api/admin is a plain 404.
   admin.use(requireRole("sales"));
   admin.use(itinerary.router);
+  admin.use(tripDocuments.router);
 
   // Defence in depth on top of SameSite=Strict cookies, for EVERY API write (parents' as well as staff): a state-changing
   // request that carries an Origin header must come from this same host. Non-browser clients send no Origin and pass.
@@ -104,5 +107,5 @@ export function createApp({ db, sender, config, clock, generateCode, logger, ren
   app.use(notFoundHandler);
   app.use(createErrorHandler({ logger }));
 
-  return { app, lifecycle: { beginShutdown: health.beginShutdown }, health, services: { itinerary: itinerary.service, itineraryOperations: itinerary.operations, staffManagement: staff.management, catalogService: catalog.service, staff: staff.service, catalog: catalog.service, emailOtp: emailOtp.service, registrations: registrations.service, auth: auth.service, onboarding: onboarding.service, enrolments: enrolments.service, liveLocation: liveLocation.service, passwordGate } };
+  return { app, lifecycle: { beginShutdown: health.beginShutdown }, health, services: { itinerary: itinerary.service, itineraryOperations: itinerary.operations, tripDocuments: tripDocuments.service, staffManagement: staff.management, catalogService: catalog.service, staff: staff.service, catalog: catalog.service, emailOtp: emailOtp.service, registrations: registrations.service, auth: auth.service, onboarding: onboarding.service, enrolments: enrolments.service, liveLocation: liveLocation.service, passwordGate } };
 }

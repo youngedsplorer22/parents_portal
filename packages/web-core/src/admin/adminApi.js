@@ -1,6 +1,6 @@
-// Client for the Sales staff API under /api/admin (sign-in, password and itinerary only). Identity is the staff member's own HttpOnly cookie, which this
+// Client for the Sales staff API under /api/admin (sign-in, password, itinerary, trip documents and school logo). Identity is the staff member's own HttpOnly cookie, which this
 // code can't read. Nothing here logs or stores request or response bodies.
-import { ApiError, getJson, patchJson, postJson, serverBusyMessage } from "../api/http.js";
+import { ApiError, deleteJson, getJson, patchJson, postJson, rawRequest, serverBusyMessage } from "../api/http.js";
 
 const A = "/api/admin";
 
@@ -41,6 +41,18 @@ export const listItinerary = (tripId, { signal } = {}) => list(`${A}/trips/${tri
 export const addItineraryItem = async (tripId, input, { signal } = {}) => one(await postJson(`${A}/trips/${tripId}/itinerary`, input, signal), "item");
 export const updateItineraryItem = async (tripId, itemId, patch, { signal } = {}) => one(await patchJson(`${A}/trips/${tripId}/itinerary/${itemId}`, patch, signal), "item");
 
+/** Trip documents: itinerary PDF, insurance, and transport files. */
+export const listTripDocuments = (tripId, { signal } = {}) => list(`${A}/trips/${tripId}/documents`, "documents", signal);
+export const uploadTripDocument = (tripId, type, name, bytes, mimeType, { signal } = {}) =>
+  rawRequest("POST", `${A}/trips/${tripId}/documents?${new URLSearchParams({ type, name })}`, { body: bytes, contentType: mimeType, signal });
+export const deleteTripDocument = (tripId, docId, { signal } = {}) => deleteJson(`${A}/trips/${tripId}/documents/${docId}`, signal);
+export const tripDocumentDownloadUrl = (tripId, docId) => `${A}/trips/${tripId}/documents/${docId}`;
+
+/** School logo for the trip's school. */
+export const getSchoolLogoInfo = (tripId, { signal } = {}) => getJson(`${A}/trips/${tripId}/school-logo`, signal);
+export const uploadSchoolLogo = (tripId, bytes, mimeType, { signal } = {}) =>
+  rawRequest("PUT", `${A}/trips/${tripId}/school-logo`, { body: bytes, contentType: mimeType, signal });
+
 /** User-facing text for a failed admin call. The server's own field messages are shown for validation errors. */
 export function adminErrorMessage(err) {
   switch (err?.code) {
@@ -78,6 +90,20 @@ export function adminErrorMessage(err) {
       return "Choose someone registered for this trip as a Team Leader.";
     case "INVALID_ASSIGNEE":
       return "Only active Sales accounts can be assigned to a trip.";
+    case "DRIVE_NOT_CONFIGURED":
+      return "File storage is not set up for this portal. Contact the administrator.";
+    case "DRIVE_UPLOAD_FAILED":
+      return "The file could not be saved. Please try again.";
+    case "DRIVE_DOWNLOAD_FAILED":
+      return "The file could not be retrieved. Please try again.";
+    case "DOCUMENT_NOT_FOUND":
+      return "That document no longer exists.";
+    case "INVALID_DOCUMENT_TYPE":
+      return "That document type is not supported.";
+    case "INVALID_FILE_TYPE":
+      return typeof err.details?.message === "string" ? err.details.message : "That file type is not supported for this document.";
+    case "MISSING_FILE":
+      return "No file was received. Please try again.";
     case "TEMPLATE_MISMATCH":
       return "That trip uses a different registration template.";
     case "TRIP_ARCHIVED":

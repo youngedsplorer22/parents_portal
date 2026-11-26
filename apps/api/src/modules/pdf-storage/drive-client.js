@@ -133,6 +133,7 @@ export function createDriveClient({
         continue;
       }
       if (!res.ok) throw classify(res.status, await readJson(res));
+      if (expect === "none") return null;
       if (expect === "bytes") return Buffer.from(await res.arrayBuffer());
       const body = await readJson(res);
       if (body === null || typeof body !== "object") throw new DriveError("DRIVE_ERROR");
@@ -196,6 +197,29 @@ export function createDriveClient({
     /** The bytes of a file by id. */
     downloadFile(id) {
       return call(`${apiBase}/files/${encodeURIComponent(id)}?${new URLSearchParams({ alt: "media" })}`, {}, { expect: "bytes" });
+    },
+
+    /** Uploads a file of any MIME type (multipart, one request). Resolves { id, size }. Private: no sharing is requested. */
+    async uploadFile({ name, mimeType, parentId, bytes, appProperties }) {
+      const boundary = `ye-${randomBytes(12).toString("hex")}`;
+      const meta = JSON.stringify({ name, mimeType, parents: [parentId], appProperties });
+      const body = Buffer.concat([
+        Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`),
+        bytes,
+        Buffer.from(`\r\n--${boundary}--`),
+      ]);
+      const file = await call(`${uploadBase}/files?${new URLSearchParams({ uploadType: "multipart", fields: "id,size" })}`, {
+        method: "POST",
+        headers: { "content-type": `multipart/related; boundary=${boundary}` },
+        body,
+      });
+      if (typeof file.id !== "string") throw new DriveError("DRIVE_ERROR");
+      return { id: file.id, size: Number(file.size) };
+    },
+
+    /** Permanently deletes a file by id. Throws NOT_FOUND if the file does not exist. */
+    deleteFile(id) {
+      return call(`${apiBase}/files/${encodeURIComponent(id)}`, { method: "DELETE" }, { expect: "none" });
     },
   };
 }

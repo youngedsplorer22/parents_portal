@@ -131,6 +131,12 @@ export async function startFakeDrive({ account = "dest@example.com", refreshToke
       }
       return json(res, 200, view(one[1], f));
     }
+    if (one && req.method === "DELETE") {
+      if (!files.has(one[1])) return apiError(res, 404, "notFound", "File not found");
+      files.delete(one[1]);
+      res.writeHead(204);
+      return res.end();
+    }
     return apiError(res, 404, "notFound", "No such fake endpoint");
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
