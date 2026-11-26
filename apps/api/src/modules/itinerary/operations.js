@@ -1,60 +1,15 @@
 import { withTransaction } from "../../db/transaction.js";
 import { recordAudit } from "../staff/audit.js";
-import { invalidAssigneeError, notFoundError, templateMismatchError, tripArchivedError, unknownTemplateError } from "./errors.js";
+import { templateMismatchError, tripArchivedError, unknownTemplateError } from "./errors.js";
 import { TEMPLATE_KEYS, UUID } from "./validation.js";
 
 /**
- * Sales-to-trip assignments and portal bindings: DEVELOPER operations, run only by the command-line tool (scripts/ops.js).
+ * Portal bindings: DEVELOPER operations, run only by the command-line tool (scripts/ops.js).
  * There is no HTTP route for any of it. `actor` is the command's own identity ({ id: null, email: "cli:<user>" }) and is
- * only used to write the audit row. A Sales account reaches a trip's itinerary only while a row exists in
- * staff_trip_assignments; many Sales users may hold one trip and one Sales user may hold many trips.
+ * only used to write the audit row. All active Sales accounts reach a trip's itinerary through the portal deployment that
+ * names it; no per-user assignment is needed or recorded.
  */
 export function createItineraryOperations({ db }) {
-  async function tripExists(q, tripId) {
-    if (typeof tripId !== "string" || !UUID.test(tripId)) throw notFoundError();
-    const { rows } = await q.query("SELECT id FROM trips WHERE id = $1", [tripId]);
-    if (rows.length === 0) throw notFoundError();
-  }
-
-  async function listAssignments(actor, tripId) {
-    await tripExists(db, tripId);
-    const { rows } = await db.query(
-      `SELECT a.staff_id, u.email_normalized AS email, u.display_name AS name, a.assigned_at
-         FROM staff_trip_assignments a JOIN staff_users u ON u.id = a.staff_id WHERE a.trip_id = $1 ORDER BY u.display_name, u.email_normalized`,
-      [tripId],
-    );
-    return rows.map((r) => ({ staffId: r.staff_id, email: r.email, name: r.name, tripId, assignedAt: r.assigned_at }));
-  }
-
-  async function assign(actor, tripId, staffId) {
-    return withTransaction(db, async (client) => {
-      await tripExists(client, tripId);
-      if (typeof staffId !== "string" || !UUID.test(staffId)) throw notFoundError();
-      const { rows: staff } = await client.query("SELECT id, role, disabled_at FROM staff_users WHERE id = $1", [staffId]);
-      if (staff.length === 0) throw notFoundError();
-      if (staff[0].role !== "sales") throw invalidAssigneeError("Only Sales accounts are assigned to trips. Admins can already reach every trip.");
-      if (staff[0].disabled_at !== null) throw invalidAssigneeError("That account is deactivated.");
-      const { rows } = await client.query(
-        `INSERT INTO staff_trip_assignments (staff_id, trip_id, assigned_by) VALUES ($1, $2, $3)
-         ON CONFLICT (staff_id, trip_id) DO NOTHING RETURNING assigned_at`,
-        [staffId, tripId, actor.id],
-      );
-      if (rows.length > 0) await recordAudit(client, actor, "trip.assign_sales", "trip", tripId, { staffId });
-      const { rows: now } = await client.query("SELECT assigned_at FROM staff_trip_assignments WHERE staff_id = $1 AND trip_id = $2", [staffId, tripId]);
-      return { staffId, tripId, assignedAt: now[0].assigned_at };
-    });
-  }
-
-  async function revoke(actor, tripId, staffId) {
-    return withTransaction(db, async (client) => {
-      await tripExists(client, tripId);
-      if (typeof staffId !== "string" || !UUID.test(staffId)) throw notFoundError();
-      const { rowCount } = await client.query("DELETE FROM staff_trip_assignments WHERE staff_id = $1 AND trip_id = $2", [staffId, tripId]);
-      if (rowCount > 0) await recordAudit(client, actor, "trip.unassign_sales", "trip", tripId, { staffId });
-      return { ok: true };
-    });
-  }
-
   // ---- portal bindings ----
   async function listDeployments(actor) {
     const { rows } = await db.query(
@@ -100,5 +55,5 @@ export function createItineraryOperations({ db }) {
     });
   }
 
-  return { listAssignments, assign, revoke, listDeployments, bindDeployment };
+  return { listDeployments, bindDeployment };
 }

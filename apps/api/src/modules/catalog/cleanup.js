@@ -30,7 +30,6 @@ const TRIP_DEPENDENCIES = `
      WHERE e.trip_id = t.id AND f.signature_name IS NOT NULL) AS signed,
   (SELECT count(*)::int FROM trip_links l WHERE l.trip_id = t.id) AS links,
   (SELECT count(*)::int FROM trip_itinerary_items i WHERE i.trip_id = t.id) AS itinerary_items,
-  (SELECT count(*)::int FROM staff_trip_assignments a WHERE a.trip_id = t.id) AS assignments,
   (SELECT count(*)::int FROM portal_deployments d WHERE d.trip_id = t.id) AS bound,
   (SELECT count(*)::int FROM audit_log a WHERE a.entity_type = 'trip' AND a.entity_id = t.id::text) AS audit_entries`;
 
@@ -42,7 +41,6 @@ export function tripBlockers(d) {
   if (d.forms) out.push(`${d.forms} form(s), ${d.submitted} submitted, ${d.signed} signed`);
   if (d.links) out.push(`${d.links} retired link record(s) (history)`);
   if (d.itineraryItems) out.push(`${d.itineraryItems} itinerary item(s)`);
-  if (d.assignments) out.push(`${d.assignments} Sales assignment(s)`);
   if (d.bound) out.push("it is the trip bound to a portal");
   return out;
 }
@@ -50,7 +48,7 @@ export function tripBlockers(d) {
 const tripView = (r) => {
   const dependencies = {
     enrolments: r.enrolments, registrations: r.registrations, forms: r.forms, submitted: r.submitted,
-    signed: r.signed, links: r.links, itineraryItems: r.itinerary_items, assignments: r.assignments, bound: r.bound, auditEntries: r.audit_entries,
+    signed: r.signed, links: r.links, itineraryItems: r.itinerary_items, bound: r.bound, auditEntries: r.audit_entries,
   };
   const blockers = tripBlockers(dependencies);
   return {

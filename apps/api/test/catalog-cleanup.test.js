@@ -153,16 +153,12 @@ describe("the cleanup command", () => {
 const wrap = (p) => ({ query: (...a) => p.query(...a), connect: () => p.connect(), end: async () => {} });
 
 describe("cleanup refuses trips that Sales or a portal depend on", () => {
-  it("refuses a trip that has itinerary items, a Sales assignment or a portal binding (it says why, and removes nothing)", async () => {
+  it("refuses a trip that has itinerary items or a portal binding (it says why, and removes nothing)", async () => {
     const s = await school("Itinerary School");
     const t = await trip(s, "Itinerary Trip");
-    const sales = (await pool.query("INSERT INTO staff_users (email_normalized, display_name, role) VALUES ('c@company.example', 'C', 'sales') RETURNING id")).rows[0].id;
     await pool.query("INSERT INTO trip_itinerary_items (trip_id, day_number, title) VALUES ($1, 1, 'Arrive')", [t.id]);
     await assert.rejects(removeTrip(pool, actor, t.id), (err) => err instanceof CleanupRefusedError && /itinerary item/.test(err.blockers.join()));
     await pool.query("DELETE FROM trip_itinerary_items");
-    await pool.query("INSERT INTO staff_trip_assignments (staff_id, trip_id) VALUES ($1, $2)", [sales, t.id]);
-    await assert.rejects(removeTrip(pool, actor, t.id), (err) => err instanceof CleanupRefusedError && /Sales assignment/.test(err.blockers.join()));
-    await pool.query("DELETE FROM staff_trip_assignments");
     await pool.query("INSERT INTO portal_deployments (template_key, trip_id) VALUES ('domestic_none', $1)", [t.id]);
     await assert.rejects(removeTrip(pool, actor, t.id), (err) => err instanceof CleanupRefusedError && /bound to a portal/.test(err.blockers.join()));
     assert.equal(await count("SELECT count(*)::int AS n FROM trips"), 1);

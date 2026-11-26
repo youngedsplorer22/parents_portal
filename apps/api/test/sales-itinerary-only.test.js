@@ -54,20 +54,17 @@ describe("Sales may use only the itinerary routes: every other staff address doe
     ["get", "/api/admin/audit"],
     ["get", "/api/admin/staff"],
     ["post", "/api/admin/staff", { email: "x@example.com", name: "X" }],
-    ["get", `/api/admin/trips/${tripA.id}/assignments`],
-    ["put", `/api/admin/trips/${tripA.id}/assignments/${ids["sales-b@example.com"]}`],
-    ["delete", `/api/admin/trips/${tripA.id}/assignments/${ids["sales-a@example.com"]}`],
     ["get", "/api/admin/portal-deployments"],
     ["put", "/api/admin/portal-deployments/domestic_none", { tripId: tripA.id }],
   ];
   it("a Sales user gets 404 NOT_FOUND on every one of them (there is no such route), and nothing changes", async () => {
-    const before = { schools: await count("schools"), trips: await count("trips"), staff: await count("staff_users"), assigned: await count("staff_trip_assignments") };
+    const before = { schools: await count("schools"), trips: await count("trips"), staff: await count("staff_users") };
     for (const [method, path, body] of refused()) {
       const res = await salesA.as[method === "delete" ? "del" : method](path, body);
       assert.equal(res.status, 404, `${method} ${path} -> ${res.status} ${JSON.stringify(res.body)}`);
       assert.equal(res.body.error.code, "NOT_FOUND");
     }
-    assert.deepEqual(before, { schools: await count("schools"), trips: await count("trips"), staff: await count("staff_users"), assigned: await count("staff_trip_assignments") });
+    assert.deepEqual(before, { schools: await count("schools"), trips: await count("trips"), staff: await count("staff_users") });
     const [t] = (await pool.query("SELECT title, status, public_registration FROM trips WHERE id = $1", [tripA.id])).rows;
     assert.deepEqual(t, { title: "Jaipur 2027", status: "draft", public_registration: false });
   });
@@ -97,8 +94,7 @@ describe("Sales reach only the deployment-configured trip", () => {
     assert.equal(res.status, 200);
     assert.deepEqual(res.body.trips.map((t) => t.id), [tripA.id]);
     assert.deepEqual(Object.keys(res.body.trips[0]).sort(), ["academicYear", "destination", "id", "itineraryCount", "schoolBranch", "schoolName", "status", "title", "tourType"]);
-    // salesB has no staff_trip_assignments but sees the same deployment-configured trip
-    assert.deepEqual((await salesB.as.get("/api/admin/itinerary/trips")).body.trips.map((t) => t.id), [tripA.id]);
+    assert.deepEqual((await salesB.as.get("/api/admin/itinerary/trips")).body.trips.map((t) => t.id), [tripA.id], "salesB also sees the deployment-configured trip");
   });
 
   it("403 on a trip not configured for this deployment, and a trip that does not exist looks the same", async () => {
@@ -113,26 +109,6 @@ describe("Sales reach only the deployment-configured trip", () => {
     assert.equal((await pool.query("SELECT title FROM trip_itinerary_items WHERE id = $1", [own.id])).rows[0].title, "Arrive in Jaipur");
   });
 
-  it("admin assignment ops still work (idempotent, only to an active Sales account, recorded) but do not gate itinerary access", async () => {
-    const put = (staffId, trip = tripB) => admin.as.put(`/api/admin/trips/${trip.id}/assignments/${staffId}`);
-    assert.equal((await put(ids["sales-b@example.com"])).status, 200);
-    assert.equal((await put(ids["sales-b@example.com"])).status, 200, "again: no error, no duplicate");
-    assert.equal((await pool.query("SELECT count(*)::int n FROM staff_trip_assignments WHERE trip_id = $1", [tripB.id])).rows[0].n, 1);
-    assert.equal((await put("00000000-0000-4000-8000-000000000000")).status, 404);
-    assert.equal((await put("nope")).status, 404);
-    assert.equal((await put(ids["sales-a@example.com"], { id: "00000000-0000-4000-8000-000000000000" })).status, 404);
-    const list = (await admin.as.get(`/api/admin/trips/${tripB.id}/assignments`)).body.assignments;
-    assert.deepEqual(list.map((a) => a.staffId), [ids["sales-b@example.com"]]);
-    const audit = (await pool.query("SELECT action FROM audit_log WHERE entity_id = $1 ORDER BY id", [tripB.id])).rows.map((r) => r.action);
-    assert.ok(audit.includes("trip.assign_sales"));
-    // The assignment does NOT grant salesB access to tripB (which is not the deployment-configured trip)
-    assert.equal((await items(salesB, tripB)).status, 403);
-  });
-
-  it("a deactivated Sales account cannot be assigned (admin API) and cannot sign in", async () => {
-    await pool.query("UPDATE staff_users SET disabled_at = now() WHERE email_normalized = 'sales-b@example.com'");
-    assert.equal((await admin.as.put(`/api/admin/trips/${tripB.id}/assignments/${ids["sales-b@example.com"]}`)).status, 400);
-  });
 });
 
 describe("itinerary items", () => {
@@ -140,7 +116,7 @@ describe("itinerary items", () => {
     await pool.query("INSERT INTO portal_deployments (template_key, trip_id) VALUES ('domestic_none', $1)", [tripA.id]);
   });
 
-  it("Sales add and edit items on an assigned trip, in day order, with the author and times recorded", async () => {
+  it("Sales add and edit items on the deployment-configured trip, in day order, with the author and times recorded", async () => {
     const a = await add(salesA, tripA, item({ dayNumber: 2, title: "Pushkar" }));
     const b = await add(salesA, tripA, item({ dayNumber: 1, title: "Arrive", position: 0 }));
     assert.equal(a.status, 201, JSON.stringify(a.body));

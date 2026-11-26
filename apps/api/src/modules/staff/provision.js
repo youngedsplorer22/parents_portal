@@ -108,7 +108,7 @@ export async function setStaffPassword(db, passwords, { email, password }) {
  *    the developer commands are kept.
  * Nullified, never deleted (declared ON DELETE SET NULL in the migrations; the row stays, only the pointer goes):
  *  schools.created_by, trips.created_by, trip_links.created_by / revoked_by, school_logos.updated_by,
- *  trip_live_locations.assigned_by, staff_trip_assignments.assigned_by, trip_itinerary_items.created_by / updated_by,
+ *  trip_live_locations.assigned_by, trip_itinerary_items.created_by / updated_by,
  *  portal_deployments.bound_by.
  * One audit row is then written with only a count: no admin address is kept anywhere.
  */

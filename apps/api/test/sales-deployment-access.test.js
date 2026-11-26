@@ -3,10 +3,9 @@ import { after, afterEach, beforeEach, describe, it } from "node:test";
 import { startApp } from "./harness.js";
 import { createTestPool, registrationFields, resetTables, slugsOf } from "./helpers.js";
 
-// Deployment-based access control for Sales staff: instead of per-user trip assignments,
-// the app is configured with a deploymentTemplateKey and reads portal_deployments to find
-// which trip is accessible. All authenticated Sales users see the same trip; no
-// staff_trip_assignments rows are needed.
+// Deployment-based access control for Sales staff: the app is configured with a deploymentTemplateKey
+// and reads portal_deployments to find which trip is accessible. All authenticated Sales users see
+// the same trip; no per-user assignment is needed.
 
 const pool = createTestPool();
 let h;
@@ -28,7 +27,6 @@ beforeEach(async () => {
   tripB = (await admin.as.post(`/api/admin/schools/${school.id}/trips`, { title: "Goa 2027", tourType: "domestic", paymentMode: "payment", academicYear: "2027-28" })).body.trip;
   // Insert into portal_deployments: this deployment is configured for tripA (domestic_none)
   await pool.query("INSERT INTO portal_deployments (template_key, trip_id) VALUES ('domestic_none', $1)", [tripA.id]);
-  // Intentionally do NOT insert any rows into staff_trip_assignments
 });
 
 afterEach(() => h.close());
@@ -39,10 +37,7 @@ const items = (who, trip) => who.as.get(`/api/admin/trips/${trip.id}/itinerary`)
 const add = (who, trip, body = item()) => who.as.post(`/api/admin/trips/${trip.id}/itinerary`, body);
 
 describe("deployment-based trip list", () => {
-  it("Sales user with zero staff_trip_assignments rows sees the configured trip", async () => {
-    const { rows } = await pool.query("SELECT count(*)::int AS n FROM staff_trip_assignments");
-    assert.equal(rows[0].n, 0, "no staff_trip_assignments rows should exist");
-
+  it("Sales user sees the configured trip with no per-user assignment needed", async () => {
     const res = await salesA.as.get("/api/admin/itinerary/trips");
     assert.equal(res.status, 200);
     assert.deepEqual(res.body.trips.map((t) => t.id), [tripA.id]);
@@ -55,7 +50,7 @@ describe("deployment-based trip list", () => {
 
     const resB = await salesB.as.get("/api/admin/itinerary/trips");
     assert.equal(resB.status, 200);
-    assert.deepEqual(resB.body.trips.map((t) => t.id), [tripA.id], "salesB has no assignments but sees the deployment trip");
+    assert.deepEqual(resB.body.trips.map((t) => t.id), [tripA.id], "salesB sees the deployment trip");
   });
 
   it("when portal_deployments has no row for the template, trip list is empty", async () => {

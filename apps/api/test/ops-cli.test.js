@@ -5,8 +5,8 @@ import { chooseTarget } from "../scripts/ops.js";
 import { startApp } from "./harness.js";
 import { createTestPool, resetTables } from "./helpers.js";
 
-// The developer commands: they, not a website, create schools and trips, bind a trip to its portal, allowlist Sales people
-// and assign them to trips. The database choice is the dangerous part, so it is tested first.
+// The developer commands: they, not a website, create schools and trips, bind a trip to its portal, and allowlist Sales
+// people. The database choice is the dangerous part, so it is tested first.
 const pool = createTestPool();
 const HOSTS = {
   PUBLIC_BASE_URL_DOMESTIC_PAYMENT: "https://domestic-paid.example.test",
@@ -154,50 +154,32 @@ describe("the Sales allowlist and assignments, end to end", () => {
     assert.equal(other.status, 401);
     await rejects("sales:allow", "--email", "priya.sales@company.example", "--name", "Again");
     await rejects("sales:allow", "--email", "not-an-email", "--name", "X");
-    assert.match(await run("sales:list"), /priya\.sales@company\.example\s+active\s+0 trip\(s\)/);
+    assert.match(await run("sales:list"), /priya\.sales@company\.example\s+active\s+Priya Sales/);
   });
 
-  it("assignments are recorded (many-to-many) but do not gate access; portal deployment controls what all Sales accounts see", async () => {
+  it("all active Sales users see the deployment's bound trip; no individual assignment is needed", async () => {
     for (const [e, n] of [["a@company.example", "A"], ["b@company.example", "B"]]) {
       await run("sales:allow", "--email", e, "--name", n);
       await h.staffSetPassword(e, "a-strong-pass-123");
     }
     const a = await h.staffSignIn("a@company.example", "a-strong-pass-123");
     const b = await h.staffSignIn("b@company.example", "a-strong-pass-123");
-    await run("sales:assign", "--email", "a@company.example", WORDS);
-    await run("sales:assign", "--email", "a@company.example", "abc-school/jaipur/goa-2027");
-    await run("sales:assign", "--email", "b@company.example", WORDS);
-    await run("sales:assign", "--email", "b@company.example", WORDS); // again: no error, no duplicate
 
-    // Assignments are recorded correctly in the DB (many-to-many still works for record-keeping)
-    const aId = (await pool.query("SELECT id FROM staff_users WHERE email_normalized = 'a@company.example'")).rows[0].id;
-    const bId = (await pool.query("SELECT id FROM staff_users WHERE email_normalized = 'b@company.example'")).rows[0].id;
-    assert.equal((await pool.query("SELECT count(*)::int n FROM staff_trip_assignments WHERE staff_id = $1", [aId])).rows[0].n, 2);
-    assert.equal((await pool.query("SELECT count(*)::int n FROM staff_trip_assignments WHERE staff_id = $1", [bId])).rows[0].n, 1, "no duplicate");
-
-    // Before portal:bind, no Sales user sees any trip (deployment, not assignment, controls access)
+    // Before portal:bind, no Sales user sees any trip
     assert.equal((await a.as.get("/api/admin/itinerary/trips")).body.trips.length, 0);
+    assert.equal((await b.as.get("/api/admin/itinerary/trips")).body.trips.length, 0);
 
-    // After portal:bind, ALL authenticated Sales accounts see the same deployed trip regardless of assignment
+    // After portal:bind, ALL authenticated Sales accounts see the same deployed trip with no assignment rows
     await run("portal:bind", WORDS);
     assert.equal((await a.as.get("/api/admin/itinerary/trips")).body.trips.length, 1);
-    assert.equal((await b.as.get("/api/admin/itinerary/trips")).body.trips.length, 1, "all Sales see the same trip regardless of assignment");
+    assert.equal((await b.as.get("/api/admin/itinerary/trips")).body.trips.length, 1, "both Sales users see the deployment trip");
     const jaipur = (await a.as.get("/api/admin/itinerary/trips")).body.trips[0];
     assert.equal((await a.as.post(`/api/admin/trips/${jaipur.id}/itinerary`, { dayNumber: 1, title: "Arrive" })).status, 201);
     assert.equal((await b.as.get(`/api/admin/trips/${jaipur.id}/itinerary`)).body.items.length, 1, "both Sales people see the one itinerary");
-    assert.match(await run("sales:assignments", WORDS), /a@company\.example[\s\S]*b@company\.example/);
-
-    // Revoke removes the assignment row but does not affect portal deployment access
-    await run("sales:revoke", "--email", "a@company.example", WORDS);
-    assert.equal((await pool.query("SELECT count(*)::int n FROM staff_trip_assignments WHERE staff_id = $1", [aId])).rows[0].n, 1, "one assignment row removed");
-    assert.equal((await a.as.get(`/api/admin/trips/${jaipur.id}/itinerary`)).status, 200, "portal access unaffected by revoke");
-    assert.equal((await b.as.get(`/api/admin/trips/${jaipur.id}/itinerary`)).status, 200);
   });
 
-  it("assigning needs an allowlisted Sales address and a real trip; a disabled person cannot sign in", async () => {
-    await rejects("sales:assign", "--email", "nobody@company.example", WORDS);
+  it("disabling a Sales user immediately revokes sessions; re-enabling allows sign-in again", async () => {
     await run("sales:allow", "--email", "c@company.example", "--name", "C");
-    await rejects("sales:assign", "--email", "c@company.example", "abc-school/jaipur/missing");
     await h.staffSetPassword("c@company.example", "a-strong-pass-123");
     await run("sales:disable", "c@company.example");
     assert.equal((await h.staffSignIn("c@company.example", "a-strong-pass-123")).res.status, 401);
@@ -215,7 +197,6 @@ describe("removing the old admin accounts", () => {
     const t = (await pool.query("INSERT INTO trips (school_id, title, tour_type, payment_mode, slug, created_by) VALUES ($1, 'Goa', 'domestic', 'none', 'goa', $2) RETURNING id", [school, admin])).rows[0].id;
     await pool.query("INSERT INTO staff_sessions (staff_id, expires_at) VALUES ($1, now() + interval '1 day')", [admin]);
     await pool.query("INSERT INTO staff_sessions (staff_id, expires_at) VALUES ($1, now() + interval '1 day')", [sales]);
-    await pool.query("INSERT INTO staff_trip_assignments (staff_id, trip_id) VALUES ($1, $2)", [sales, t]);
     await pool.query("INSERT INTO email_otps (email_normalized, purpose, code_hash, expires_at, resend_available_at) VALUES ('old.admin@example.com', 'staff_password', repeat('a', 64), now() + interval '1 hour', now())");
     await pool.query("INSERT INTO audit_log (staff_id, staff_email, action, entity_type, details) VALUES ($1, 'old.admin@example.com', 'school.create', 'school', '{}')", [admin]);
     await pool.query("INSERT INTO audit_log (staff_id, staff_email, action, entity_type, details) VALUES ($1, 'old.admin2@example.com', 'trip.create', 'trip', '{}')", [admin2]);
@@ -237,7 +218,7 @@ describe("removing the old admin accounts", () => {
   const counts = async () => (await pool.query(
     `SELECT (SELECT count(*)::int FROM staff_users WHERE role = 'admin') admins, (SELECT count(*)::int FROM staff_users WHERE role = 'sales') sales,
             (SELECT count(*)::int FROM schools) schools, (SELECT count(*)::int FROM trips) trips, (SELECT count(*)::int FROM staff_sessions) sessions,
-            (SELECT count(*)::int FROM staff_trip_assignments) assignments, (SELECT count(*)::int FROM audit_log) audit,
+            (SELECT count(*)::int FROM audit_log) audit,
             (SELECT count(*)::int FROM staff_login_attempts) attempts,
             (SELECT count(*)::int FROM parent_registrations) registrations, (SELECT count(*)::int FROM trip_enrolments) enrolments,
             (SELECT count(*)::int FROM onboarding_forms) forms, (SELECT md5(string_agg(md5(data::text), ',')) FROM onboarding_forms) form_data,
@@ -264,7 +245,7 @@ describe("removing the old admin accounts", () => {
     assert.deepEqual(await counts(), before);
   });
 
-  it("deletes the admin accounts and what existed only for them; schools, trips, Sales people, assignments and everyone else's audit rows stay", async () => {
+  it("deletes the admin accounts and what existed only for them; schools, trips, Sales people and everyone else's audit rows stay", async () => {
     const ids = await seed();
     const before = await counts();
     const out = await run("admin:remove", "--apply", "--confirm", "parents_portal_test");
@@ -327,7 +308,7 @@ describe("removing the old admin accounts", () => {
 describe("developer help", () => {
   it("prints every command and never mentions a password argument", async () => {
     const out = await run("help");
-    for (const c of ["trip:create", "trip:open", "trip:close", "trip:config", "portal:bind", "portal:status", "sales:allow", "sales:assign", "sales:revoke", "admin:remove", "audit:list"]) assert.ok(out.includes(c), c);
+    for (const c of ["trip:create", "trip:open", "trip:close", "trip:config", "portal:bind", "portal:status", "sales:allow", "sales:disable", "sales:enable", "admin:remove", "audit:list"]) assert.ok(out.includes(c), c);
     assert.doesNotMatch(out, /--password/);
   });
   it("an unknown command is refused in plain words", async () => {

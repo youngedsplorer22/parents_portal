@@ -37,13 +37,10 @@ export const HELP = `Developer commands (npm run ops -- <command> ...)
                                              trip it replaces. Run it before deploying the portal for a new school.
     portal:status
 
-  Sales accounts (the allowlist) and their trips
+  Sales accounts (the allowlist)
     sales:allow --email name@company.com --name "Full Name"   Adds the exact address; its owner then sets a password.
     sales:list
     sales:disable <email>   |   sales:enable <email>
-    sales:assign --email name@company.com <school>/<branch>/<trip>
-    sales:revoke --email name@company.com <school>/<branch>/<trip>
-    sales:assignments [<school>/<branch>/<trip>]
 
   Cleanup and records
     admin:remove [--apply --confirm <database name>]   Lists, or with --apply deletes, the old admin accounts, their sessions and the audit rows they wrote. Nothing else.
@@ -220,17 +217,16 @@ export function createOps({ db, env = {}, user = "developer" }) {
       const made = await staff.createSales(actor, input.data);
       out(`Added ${made.email} to the Sales list (status: ${made.status}).`);
       out("They can now open the Sales portal, choose 'First time or forgot your password?', and set a password with an emailed code.");
-      out("They see no trips until you assign one: npm run ops -- sales:assign --email " + made.email + " <school>/<branch>/<trip>");
+      out("Once they sign in they will see the trip bound to their portal (npm run ops -- portal:status).");
     },
 
     async "sales:list"(_args, out) {
       const { rows } = await db.query(
-        `SELECT u.email_normalized AS email, u.display_name AS name, u.disabled_at, (u.password_hash IS NULL) AS pending,
-                (SELECT count(*)::int FROM staff_trip_assignments a WHERE a.staff_id = u.id) AS trips
+        `SELECT u.email_normalized AS email, u.display_name AS name, u.disabled_at, (u.password_hash IS NULL) AS pending
            FROM staff_users u WHERE u.role = 'sales' ORDER BY u.email_normalized`,
       );
       if (rows.length === 0) out("No Sales accounts.");
-      for (const r of rows) out(`${r.email.padEnd(40)} ${(r.disabled_at ? "disabled" : r.pending ? "waiting for password" : "active").padEnd(22)} ${r.trips} trip(s)  ${r.name}`);
+      for (const r of rows) out(`${r.email.padEnd(40)} ${(r.disabled_at ? "disabled" : r.pending ? "waiting for password" : "active").padEnd(22)} ${r.name}`);
     },
 
     async "sales:disable"({ positional }, out) {
@@ -242,36 +238,6 @@ export function createOps({ db, env = {}, user = "developer" }) {
       await findSales(positional[0]);
       await setStaffDisabled(db, { email: positional[0], disabled: false });
       out(`Enabled ${positional[0]}.`);
-    },
-
-    async "sales:assign"({ flags, positional }, out) {
-      const s = await findSales(flags.email);
-      const t = await findTrip(positional[0]);
-      await operations.assign(actor, t.id, s.id);
-      out(`${s.email_normalized} can now add and edit the itinerary of ${words(t)}.`);
-    },
-    async "sales:revoke"({ flags, positional }, out) {
-      const s = await findSales(flags.email);
-      const t = await findTrip(positional[0]);
-      await operations.revoke(actor, t.id, s.id);
-      out(`${s.email_normalized} can no longer reach the itinerary of ${words(t)}.`);
-    },
-    async "sales:assignments"({ positional }, out) {
-      const params = [];
-      let where = "";
-      if (positional[0]) {
-        const w = parseTripRef(positional[0]);
-        params.push(w.school, w.branch, w.trip);
-        where = "WHERE s.slug = $1 AND s.branch_slug = $2 AND t.slug = $3";
-      }
-      const { rows } = await db.query(
-        `SELECT u.email_normalized AS email, s.slug AS school_slug, s.branch_slug, t.slug FROM staff_trip_assignments a
-           JOIN staff_users u ON u.id = a.staff_id JOIN trips t ON t.id = a.trip_id JOIN schools s ON s.id = t.school_id
-          ${where} ORDER BY u.email_normalized, s.slug, t.slug`,
-        params,
-      );
-      if (rows.length === 0) out("No assignments.");
-      for (const r of rows) out(`${r.email.padEnd(40)} ${words(r)}`);
     },
 
     async "admin:remove"({ flags }, out, ctx) {
