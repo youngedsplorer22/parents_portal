@@ -55,6 +55,13 @@ const STAFF = [
   ["GET", `/api/admin/trips/${UUID}/itinerary`],
   ["POST", `/api/admin/trips/${UUID}/itinerary`],
   ["PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID2}`],
+  // Manage Trip: trip documents and school logo
+  ["GET", `/api/admin/trips/${UUID}/documents`],
+  ["POST", `/api/admin/trips/${UUID}/documents?type=itinerary&name=report.pdf`],
+  ["GET", `/api/admin/trips/${UUID}/documents/${UUID2}`],
+  ["DELETE", `/api/admin/trips/${UUID}/documents/${UUID2}`],
+  ["GET", `/api/admin/trips/${UUID}/school-logo`],
+  ["PUT", `/api/admin/trips/${UUID}/school-logo`],
 ];
 
 const ok = (role, method, target) => checkApiTarget(role, method, target);
@@ -395,6 +402,43 @@ describe("Sales routes are forwarded by both portals; unrelated admin paths rema
       assert.equal(ok(role, "PATCH", `/api/admin/trips/${UUID}/itinerary/not-a-uuid`).ok, false, `${role}: bad item UUID`);
       assert.equal(ok(role, "PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID2}/extra`).ok, false, `${role}: extra segment`);
       assert.equal(ok(role, "GET",   `/api/admin/trips/${UUID}/itinerary/`).ok, false, `${role}: trailing slash`);
+    }
+  });
+
+  it("trip-document and school-logo routes: wrong methods are blocked", () => {
+    for (const role of ["public", "staff"]) {
+      // Documents list path: PUT, PATCH, DELETE not in allowlist (only GET and POST)
+      assert.equal(ok(role, "PUT",    `/api/admin/trips/${UUID}/documents`).ok, false, `${role}: PUT /documents`);
+      assert.equal(ok(role, "PATCH",  `/api/admin/trips/${UUID}/documents`).ok, false, `${role}: PATCH /documents`);
+      assert.equal(ok(role, "DELETE", `/api/admin/trips/${UUID}/documents`).ok, false, `${role}: DELETE /documents`);
+      // Document item path: only GET and DELETE (not POST, PUT, PATCH)
+      assert.equal(ok(role, "POST",   `/api/admin/trips/${UUID}/documents/${UUID2}`).ok, false, `${role}: POST item`);
+      assert.equal(ok(role, "PUT",    `/api/admin/trips/${UUID}/documents/${UUID2}`).ok, false, `${role}: PUT item`);
+      assert.equal(ok(role, "PATCH",  `/api/admin/trips/${UUID}/documents/${UUID2}`).ok, false, `${role}: PATCH item`);
+      // School logo: only GET and PUT
+      assert.equal(ok(role, "POST",   `/api/admin/trips/${UUID}/school-logo`).ok, false, `${role}: POST school-logo`);
+      assert.equal(ok(role, "DELETE", `/api/admin/trips/${UUID}/school-logo`).ok, false, `${role}: DELETE school-logo`);
+      assert.equal(ok(role, "PATCH",  `/api/admin/trips/${UUID}/school-logo`).ok, false, `${role}: PATCH school-logo`);
+    }
+  });
+
+  it("trip-document upload: valid type/name pairs pass; bad types, percent-encoded names, and unknown keys are blocked", () => {
+    for (const role of ["public", "staff"]) {
+      // Valid upload targets
+      assert.equal(ok(role, "POST", `/api/admin/trips/${UUID}/documents?type=itinerary&name=report.pdf`).ok, true, `${role}: itinerary`);
+      assert.equal(ok(role, "POST", `/api/admin/trips/${UUID}/documents?type=insurance&name=policy.pdf`).ok, true, `${role}: insurance`);
+      assert.equal(ok(role, "POST", `/api/admin/trips/${UUID}/documents?type=transport&name=flight-ticket.pdf`).ok, true, `${role}: transport`);
+      assert.equal(ok(role, "POST", `/api/admin/trips/${UUID}/documents?type=itinerary&name=my+report.pdf`).ok, true, `${role}: name with + (URL-encoded space)`);
+      assert.equal(ok(role, "POST", `/api/admin/trips/${UUID}/documents?type=itinerary&name=Q4_itinerary.pdf`).ok, true, `${role}: name with underscore`);
+      // Bad or missing type
+      assert.equal(ok(role, "POST", `/api/admin/trips/${UUID}/documents?type=logo&name=x.pdf`).ok, false, `${role}: invalid type`);
+      assert.equal(ok(role, "POST", `/api/admin/trips/${UUID}/documents?type=ITINERARY&name=x.pdf`).ok, false, `${role}: uppercase type`);
+      // Percent-encoded name (not allowed: % not in QUERY_ENTRY value charset)
+      assert.equal(ok(role, "POST", `/api/admin/trips/${UUID}/documents?type=itinerary&name=r%C3%A9sum%C3%A9.pdf`).ok, false, `${role}: percent-encoded name`);
+      // Unknown query key
+      assert.equal(ok(role, "POST", `/api/admin/trips/${UUID}/documents?type=itinerary&name=x.pdf&x=1`).ok, false, `${role}: extra key`);
+      // GET documents list must not accept query params
+      assert.equal(ok(role, "GET",  `/api/admin/trips/${UUID}/documents?type=itinerary`).ok, false, `${role}: GET list with query`);
     }
   });
 

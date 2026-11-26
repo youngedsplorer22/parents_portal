@@ -219,6 +219,25 @@ describe("what a portal will not forward", () => {
   });
 });
 
+describe("Manage Trip routes reach the API through both portals (regression: proxy allowlist)", () => {
+  // Before the fix, these routes were absent from api-policy.js POLICIES. The proxy answered 404 NOT_FOUND before
+  // the request ever reached Express. With the fix, unauthenticated requests get 401 from the API (not 404 from the proxy).
+  it("unauthenticated requests to trip-document and school-logo routes get 401 from API, not 404 from proxy", async () => {
+    const targets = [
+      ["GET",    `/api/admin/trips/${tripD.id}/documents`],
+      ["GET",    `/api/admin/trips/${tripD.id}/documents/${UUID}`],
+      ["GET",    `/api/admin/trips/${tripD.id}/school-logo`],
+    ];
+    for (const site of [staffSite, publicSite]) {
+      for (const [method, path] of targets) {
+        const res = await site.call(method, path);
+        assert.notEqual(res.status, 404, `${method} ${path} must reach the API (got 404 — proxy is still blocking)`);
+        assert.equal(res.status, 401, `${method} ${path} without a session: API says 401`);
+      }
+    }
+  });
+});
+
 describe("the address the API ends up using", () => {
   it("is the one the edge reported (xff:1), however the browser dresses the request", async () => {
     await publicSite.get("/api/join/some-school/main/some-trip", { headers: { "x-forwarded-for": "6.6.6.6, 203.0.113.9", "x-real-ip": "7.7.7.7", forwarded: "for=8.8.8.8", "x-forwarded-host": "evil.example" } });

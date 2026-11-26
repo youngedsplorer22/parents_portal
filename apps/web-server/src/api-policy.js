@@ -26,10 +26,18 @@ const VERSION = { v: /^[0-9]{1,15}$/ };
 // The largest request body each route may carry, in bytes. These are the API's OWN limits, copied from the express.json({ limit })
 // each router sets (not chosen here), so a legitimate call is never refused and anything bigger is stopped before it is streamed
 // to the API: /api/email-otp 2kb, /api/registrations 4kb, /api/auth 4kb, /api/enrolments 2kb, /api/live-location 1kb,
-// /api/onboarding 64kb, /api/admin 8kb. A route that takes no body (every GET) gets 0. A test in apps/api checks each against
-// the real API, so these cannot drift apart unnoticed.
+// /api/onboarding 64kb, /api/admin 8kb, /api/admin trip-documents 10mb, /api/admin school-logo 512kb. A route that takes no body
+// (every GET) gets 0. A test in apps/api checks each JSON route against the real API, so those cannot drift apart unnoticed.
 const KB = 1024;
+const MB = 1024 * KB;
 const rule = (method, pattern, query = {}, maxBody = 0) => ({ method, re: new RegExp(`^${pattern}$`), query, maxBody });
+
+// Query validators for trip-document uploads. `name` is a URLSearchParams-encoded filename: URLSearchParams keeps letters,
+// digits, `-`, `_`, `.`, `*` as-is and encodes spaces as `+`. Allow those chars (and nothing else) up to 200 chars.
+const DOC_UPLOAD = {
+  type: /^(itinerary|insurance|transport)$/,
+  name: /^[A-Za-z0-9._*+-]{1,200}$/,
+};
 
 const POLICIES = {
   public: [
@@ -76,6 +84,13 @@ const POLICIES = {
     rule("GET", `/api/admin/trips/${UUID}/itinerary`),
     rule("POST", `/api/admin/trips/${UUID}/itinerary`, {}, 8 * KB),
     rule("PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID}`, {}, 8 * KB),
+    // Manage Trip: trip documents (itinerary PDF, insurance, transport) and school logo.
+    rule("GET", `/api/admin/trips/${UUID}/documents`),
+    rule("POST", `/api/admin/trips/${UUID}/documents`, DOC_UPLOAD, 10 * MB),
+    rule("GET", `/api/admin/trips/${UUID}/documents/${UUID}`),
+    rule("DELETE", `/api/admin/trips/${UUID}/documents/${UUID}`),
+    rule("GET", `/api/admin/trips/${UUID}/school-logo`),
+    rule("PUT", `/api/admin/trips/${UUID}/school-logo`, {}, 512 * KB),
   ],
   staff: [
     rule("POST", "/api/admin/auth/login", {}, 8 * KB),
@@ -91,6 +106,13 @@ const POLICIES = {
     rule("GET", `/api/admin/trips/${UUID}/itinerary`),
     rule("POST", `/api/admin/trips/${UUID}/itinerary`, {}, 8 * KB),
     rule("PATCH", `/api/admin/trips/${UUID}/itinerary/${UUID}`, {}, 8 * KB),
+    // Manage Trip: trip documents (itinerary PDF, insurance, transport) and school logo.
+    rule("GET", `/api/admin/trips/${UUID}/documents`),
+    rule("POST", `/api/admin/trips/${UUID}/documents`, DOC_UPLOAD, 10 * MB),
+    rule("GET", `/api/admin/trips/${UUID}/documents/${UUID}`),
+    rule("DELETE", `/api/admin/trips/${UUID}/documents/${UUID}`),
+    rule("GET", `/api/admin/trips/${UUID}/school-logo`),
+    rule("PUT", `/api/admin/trips/${UUID}/school-logo`, {}, 512 * KB),
   ],
 };
 
@@ -102,7 +124,9 @@ export const API_ROLES = Object.freeze(Object.keys(POLICIES));
 // and tolerates a trailing slash, so those spellings are refused here rather than forwarded.
 const SAFE_PATH = /^(?:\/[A-Za-z0-9-]+)+$/;
 const MAX_TARGET = 700;
-const QUERY_ENTRY = /^([a-z]{1,16})=([A-Za-z0-9-]{1,64})$/;
+// Values may include dots and underscores (file extensions, identifiers), `+` (URLSearchParams-encoded space) and `*` (kept
+// as-is by URLSearchParams). Per-key patterns narrow further; this only rejects obviously unsafe characters.
+const QUERY_ENTRY = /^([a-z]{1,16})=([A-Za-z0-9._*+-]{1,200})$/;
 
 const DENY = Object.freeze({ ok: false });
 
