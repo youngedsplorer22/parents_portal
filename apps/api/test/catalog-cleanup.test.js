@@ -49,7 +49,7 @@ describe("reviewing schools and trips for cleanup (read only)", () => {
     const review = await reviewCatalog(pool);
     const u = review.find((s) => s.name === "Used School");
     assert.equal(u.removable, false);
-    assert.deepEqual(u.trips[0].dependencies, { enrolments: 1, registrations: 1, forms: 1, submitted: 1, signed: 1, links: 0, itineraryItems: 0, assignments: 0, bound: 0, auditEntries: 3 });
+    assert.deepEqual(u.trips[0].dependencies, { enrolments: 1, registrations: 1, forms: 1, submitted: 1, signed: 1, links: 0, itineraryItems: 0, bound: 0, auditEntries: 3 });
     assert.match(u.blockers[0], /1 trip registration\(s\).*1 submitted, 1 signed/);
     const e = review.find((s) => s.name === "Unused School");
     assert.equal(e.removable, true);

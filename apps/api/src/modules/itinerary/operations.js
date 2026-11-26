@@ -1,6 +1,6 @@
 import { withTransaction } from "../../db/transaction.js";
 import { recordAudit } from "../staff/audit.js";
-import { templateMismatchError, tripArchivedError, unknownTemplateError } from "./errors.js";
+import { notFoundError, templateMismatchError, tripArchivedError, unknownTemplateError } from "./errors.js";
 import { TEMPLATE_KEYS, UUID } from "./validation.js";
 
 /**

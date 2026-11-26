@@ -105,6 +105,8 @@ export function createOtpService({
     try {
       await sender.send({ email, code: issued.code, expiresInSeconds: ttlFor(purpose), purpose, context });
     } catch (err) {
+      // Warn immediately (before the async invalidation) so Railway logs capture this even if the DB call is slow.
+      logger.warn?.("[email-otp] background delivery failed; code voided. Check SMTP settings and Railway logs for the error code.");
       await repo.invalidate(db, issued.id, await currentTime(db)).catch(() => {});
       throw new AppError(502, "DELIVERY_FAILED", "We could not deliver the code. Please try again.");
     }
@@ -120,9 +122,7 @@ export function createOtpService({
   async function dispatch(delivery, email, purpose, issued, context) {
     if (delivery === "none") return;
     if (delivery === "background") {
-      deliver(email, purpose, issued, context).catch(() => {
-        logger.warn?.("[email-otp] background delivery failed; code voided. Check SMTP settings and Railway logs for the error code.");
-      });
+      deliver(email, purpose, issued, context).catch(() => {});
       return;
     }
     await deliver(email, purpose, issued, context);
