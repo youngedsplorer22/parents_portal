@@ -2099,9 +2099,9 @@ button {
 .admin-upload-label .admin-button[aria-disabled="true"] { pointer-events: none; opacity: 0.65; }
 
 /* Danger variants */
-.admin-button-danger { background: var(--danger, #dc2626); color: #fff; border-color: var(--danger, #dc2626); }
+.admin-button-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 .admin-button-danger:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
-.admin-button-ghost-danger { color: var(--danger, #dc2626); border-color: #fecaca; background: #fff; }
+.admin-button-ghost-danger { color: var(--danger); border-color: #fecaca; background: #fff; }
 .admin-button-ghost-danger:hover:not(:disabled) { background: #fff1f1; }
 
 /* Participant itinerary (dashboard) */

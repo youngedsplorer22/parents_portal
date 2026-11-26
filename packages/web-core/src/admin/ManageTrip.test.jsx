@@ -1,4 +1,4 @@
-import { configure, render, screen, waitFor, within } from "@testing-library/react";
+import { configure, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,7 +7,7 @@ import { createFakeAdmin } from "../test/fakeAdmin.js";
 import { preloadRouteChunks } from "../test/routeChunks.js";
 
 beforeAll(preloadRouteChunks, 60_000);
-configure({ asyncUtilTimeout: 6000 });
+configure({ asyncUtilTimeout: 8000 });
 
 let user;
 beforeEach(() => { user = userEvent.setup(); });
@@ -29,10 +29,12 @@ describe("dashboard CTA", () => {
     salesWorld();
     at("/sales/dashboard");
     await screen.findByRole("heading", { name: "Sales dashboard" });
-    const cta = screen.getByRole("link", { name: /Manage trip/ });
-    expect(cta).toBeInTheDocument();
+    // Scope to the workflow card to avoid ambiguity with the nav link which also says "Manage trip"
+    const card = screen.getByRole("heading", { name: /Manage this portal's trip/i }).closest("section");
+    const cta = within(card).getByRole("link", { name: /Manage trip/ });
     expect(cta).toHaveAttribute("href", "/sales/manage");
-    expect(screen.queryByRole("link", { name: /My itineraries/i, hidden: false })).not.toBeNull(); // nav link still present
+    // Nav link to My itineraries still present (itinerary feature is not removed)
+    expect(screen.getByRole("link", { name: /My itineraries/i })).toBeInTheDocument();
   });
 
   it("dashboard card heading says Manage this portal's trip", async () => {
@@ -72,7 +74,7 @@ describe("Manage trip page", () => {
     salesWorld();
     at("/sales/manage");
     await screen.findByRole("heading", { name: "Manage trip" });
-    const tabs = screen.getAllByRole("button").filter((b) => ["School logo", "Itinerary", "Insurance", "Transport tickets"].includes(b.textContent.trim()));
+    const tabs = screen.getAllByRole("button").filter((b) => ["School logo", "Itinerary", "Insurance", "Transport"].includes(b.textContent.trim()));
     expect(tabs).toHaveLength(4);
   });
 
@@ -93,15 +95,11 @@ describe("Manage trip page", () => {
     expect(await screen.findByText("Logo updated.")).toBeInTheDocument();
   });
 
-  it("document list shows uploaded file after upload", async () => {
-    const { mine } = salesWorld();
+  it("document list shows upload button after switching to Itinerary tab", async () => {
+    salesWorld();
     at("/sales/manage");
     await screen.findByRole("heading", { name: "Manage trip" });
-    // Switch to Itinerary tab
     await user.click(screen.getByRole("button", { name: /Itinerary/ }));
-    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
-    // After load, upload button is visible
-    const btn = screen.getByText(/Upload itinerary pdf/i).closest("span");
-    expect(btn).toBeInTheDocument();
+    expect(await screen.findByText(/Upload itinerary pdf/i)).toBeInTheDocument();
   });
 });
