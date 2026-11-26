@@ -20,7 +20,7 @@ let tripB;
 let school;
 
 const PDF = Buffer.from("%PDF-1.4 fake pdf bytes");
-const PNG = Buffer.from("\x89PNG\r\n\x1a\n fake png bytes");
+const PNG = Buffer.from("\x89PNG\r\n\x1a\n fake png bytes", "latin1");
 
 const upload = (who, trip, type, body, opts = {}) =>
   who.as.post(
@@ -290,13 +290,14 @@ describe("Drive failure handling", () => {
 
 describe("portal-key-based access", () => {
   let h2;
+  let drive2;
   let salesC;
   let tripC;
   const PORTAL_SECRET = "test-portal-secret-domestic-none";
 
   beforeEach(async () => {
     await resetTables(pool);
-    const drive2 = await startFakeDrive();
+    drive2 = await startFakeDrive();
     h2 = await startApp({
       db: pool,
       drive: drive2,
@@ -309,7 +310,10 @@ describe("portal-key-based access", () => {
     tripC = (await admin2.as.post(`/api/admin/schools/${school2.id}/trips`, { title: "Jaipur 2027", tourType: "domestic", paymentMode: "none", academicYear: "2027-28" })).body.trip;
     await pool.query("INSERT INTO portal_deployments (template_key, trip_id) VALUES ('domestic_none', $1)", [tripC.id]);
   });
-  afterEach(() => h2.close());
+  afterEach(async () => {
+    await h2.close();
+    await drive2.close();
+  });
 
   it("Sales can upload via portal-key-based resolution", async () => {
     const res = await salesC.as.post(
