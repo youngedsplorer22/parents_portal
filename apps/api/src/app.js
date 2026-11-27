@@ -61,7 +61,7 @@ export function createApp({ db, sender, config, clock, generateCode, logger, ren
     db, requireSession: requireSession(auth.service), renderPdf, logger, pdfRendering: config.pdfRendering,
     drive, driveRootName: pdfStorage.rootName, pdfStorageNote: { mode: pdfStorage.mode, missing: pdfStorage.missing }, limits: pdfLimits,
   });
-  const enrolments = createEnrolmentsModule({ db, catalog: catalog.service, requireSession: requireSession(auth.service) });
+  const enrolments = createEnrolmentsModule({ db, catalog: catalog.service, requireSession: requireSession(auth.service), drive });
   const liveLocation = createLiveLocationModule({ db, catalog: catalog.service, requireSession: requireSession(auth.service), policy: config.liveLocation?.policy, limits: config.liveLocation?.limits });
 
   const mobile = createMobileModule({ auth: auth.service, liveLocation: liveLocation.service, limits: config.mobile?.limits });

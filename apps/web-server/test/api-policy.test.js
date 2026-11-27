@@ -40,6 +40,11 @@ const PUBLIC = [
   ["POST", "/api/live-location/stop"],
   ["GET", "/api/school-logos/greenfield-public-school/kolkata"],
   ["GET", "/api/school-logos/greenfield-public-school/kolkata?v=1767225600000"],
+  // Parent-facing trip documents
+  ["GET", `/api/enrolments/${UUID}/documents?type=itinerary`],
+  ["GET", `/api/enrolments/${UUID}/documents?type=insurance`],
+  ["GET", `/api/enrolments/${UUID}/documents?type=transport`],
+  ["GET", `/api/enrolments/${UUID}/documents/${UUID2}`],
 ];
 const STAFF = [
   ["POST", "/api/admin/auth/login"],

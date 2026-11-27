@@ -1,9 +1,11 @@
 import { Menu } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import InsuranceSection from "./InsuranceSection.jsx";
 import ItinerarySection from "./ItinerarySection.jsx";
 import LiveTrackingSection from "./LiveTrackingSection.jsx";
 import PersonalDetailsSection from "./PersonalDetailsSection.jsx";
 import PlaceholderSection from "./PlaceholderSection.jsx";
+import TransportSection from "./TransportSection.jsx";
 import { DASHBOARD_SECTIONS, sectionFromHash } from "./sections.js";
 
 /**
@@ -115,6 +117,10 @@ export default function ParentDashboard({ data, pdfPollMs, pdfMaxPolls, onSessio
           <LiveTrackingSection section={section} headingRef={headingRef} enrolmentId={enrolmentId} onSessionEnded={onSessionEnded} refreshMs={liveRefreshMs} />
         ) : section.id === "itinerary" && enrolmentId && enrolmentId !== "legacy" ? (
           <ItinerarySection section={section} headingRef={headingRef} enrolmentId={enrolmentId} onSessionEnded={onSessionEnded} />
+        ) : section.id === "insurance" && enrolmentId && enrolmentId !== "legacy" ? (
+          <InsuranceSection section={section} headingRef={headingRef} enrolmentId={enrolmentId} onSessionEnded={onSessionEnded} />
+        ) : section.id === "tickets" && enrolmentId && enrolmentId !== "legacy" ? (
+          <TransportSection section={section} headingRef={headingRef} enrolmentId={enrolmentId} onSessionEnded={onSessionEnded} />
         ) : (
           <PlaceholderSection section={section} headingRef={headingRef} />
         )}

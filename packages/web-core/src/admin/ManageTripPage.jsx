@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { Download, FileText, Image, ListChecks, Loader, Shield, Ticket, Trash2, Upload } from "lucide-react";
 import {
   deleteTripDocument,
@@ -34,7 +33,7 @@ function formatBytes(n) {
 
 export default function ManageTripPage() {
   const [tab, setTab] = useState("logo");
-  const { expire, base } = useStaff();
+  const { expire } = useStaff();
   const trips = useAdminData((o) => listItineraryTrips(o), []);
 
   const trip = trips.status === "ready" ? (trips.data[0] ?? null) : null;
@@ -71,7 +70,7 @@ export default function ManageTripPage() {
         ))}
       </nav>
       {tab === "logo" && <LogoSection tripId={trip.id} expire={expire} />}
-      {tab === "itinerary" && <ItinerarySection tripId={trip.id} base={base} expire={expire} />}
+      {tab === "itinerary" && <ItinerarySection tripId={trip.id} expire={expire} />}
       {tab === "insurance" && <DocumentSection tripId={trip.id} type="insurance" label="Insurance" expire={expire} multiple={false} accept={DOC_ACCEPT} />}
       {tab === "transport" && <DocumentSection tripId={trip.id} type="transport" label="Transport tickets" expire={expire} multiple={true} accept={DOC_ACCEPT} />}
     </>
@@ -153,36 +152,27 @@ function LogoSection({ tripId, expire }) {
 
 // ---- Itinerary ----
 
-function ItinerarySection({ tripId, base, expire }) {
+function ItinerarySection({ tripId, expire }) {
   const docs = useAdminData((o) => listTripDocuments(tripId, o), [tripId]);
   const itineraryDocs = docs.status === "ready" ? docs.data.filter((d) => d.documentType === "itinerary") : [];
 
   return (
-    <>
-      <section className="admin-card" aria-labelledby="mt-itin-manual">
-        <h2 id="mt-itin-manual">Manual itinerary entries</h2>
-        <p className="admin-muted">Add day-by-day entries that appear directly in the parent portal.</p>
-        <Link className="admin-button admin-button-primary" to={`${base}/itineraries/${tripId}`}>
-          <ListChecks size={16} aria-hidden="true" /> Edit itinerary entries
-        </Link>
-      </section>
-      <section className="admin-card" aria-labelledby="mt-itin-file">
-        <h2 id="mt-itin-file">Itinerary PDF</h2>
-        <p className="admin-muted">Upload an itinerary PDF. Uploading a new one replaces the previous file.</p>
-        <DocumentUploadSection
-          tripId={tripId}
-          type="itinerary"
-          docs={itineraryDocs}
-          docsStatus={docs.status}
-          docsError={docs.error}
-          reload={docs.reload}
-          expire={expire}
-          multiple={false}
-          accept={PDF_ACCEPT}
-          label="itinerary PDF"
-        />
-      </section>
-    </>
+    <section className="admin-card" aria-labelledby="mt-itin-file">
+      <h2 id="mt-itin-file">Itinerary PDF</h2>
+      <p className="admin-muted">Upload an itinerary PDF. Uploading a new one replaces the previous file. Parents will see the latest version on their next page load.</p>
+      <DocumentUploadSection
+        tripId={tripId}
+        type="itinerary"
+        docs={itineraryDocs}
+        docsStatus={docs.status}
+        docsError={docs.error}
+        reload={docs.reload}
+        expire={expire}
+        multiple={false}
+        accept={PDF_ACCEPT}
+        label="itinerary PDF"
+      />
+    </section>
   );
 }
 

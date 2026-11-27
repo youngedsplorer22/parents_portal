@@ -51,6 +51,9 @@ export function createFakeBackend({ user = USER, signedIn = false, form = null, 
     pdfPollsUntilStored: 0,
     // The itinerary Sales keep for the current trip, as the server returns it (read-only for the participant).
     itinerary: [],
+    // Trip documents for the current trip, keyed by type: { itinerary: [...], insurance: [...], transport: [...] }.
+    // Each entry: { id, displayName, mimeType, sizeBytes }.
+    tripDocuments: {},
   };
   /** Live location answers only for the caller's own current enrolment, like the server (anything else: 404). */
   const liveScope = (id, fn) => (id && id === state.currentId ? fn() : apiError(404, "NOT_FOUND"));
@@ -311,6 +314,25 @@ export function createFakeBackend({ user = USER, signedIn = false, form = null, 
       return decodeURIComponent(itin[1]) === state.currentId && state.trip
         ? reply(200, { trip: { title: state.trip.title, destination: state.trip.destination ?? null }, items: state.itinerary })
         : apiError(404, "NOT_FOUND");
+    }
+    // Parent-facing trip documents: only for the caller's OWN current enrolment.
+    const docsListMatch = method === "GET" && /^\/api\/enrolments\/([^/]+)\/documents$/.exec(path);
+    if (docsListMatch) {
+      const enrolmentId = decodeURIComponent(docsListMatch[1]);
+      if (enrolmentId !== state.currentId || !state.trip) return apiError(404, "NOT_FOUND");
+      const type = query.get("type");
+      const docs = (state.tripDocuments?.[type] ?? []);
+      return reply(200, { documents: docs });
+    }
+    const docsDownloadMatch = method === "GET" && /^\/api\/enrolments\/([^/]+)\/documents\/([^/]+)$/.exec(path);
+    if (docsDownloadMatch) {
+      const enrolmentId = decodeURIComponent(docsDownloadMatch[1]);
+      const documentId = decodeURIComponent(docsDownloadMatch[2]);
+      if (enrolmentId !== state.currentId || !state.trip) return apiError(404, "NOT_FOUND");
+      const allDocs = Object.values(state.tripDocuments ?? {}).flat();
+      const doc = allDocs.find((d) => d.id === documentId);
+      if (!doc) return apiError(404, "NOT_FOUND");
+      return new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46]), { status: 200, headers: { "Content-Type": doc.mimeType, "Content-Disposition": `inline; filename="${doc.displayName}"` } });
     }
     const handler = handlers[key];
     if (!handler) throw new Error(`Unexpected fetch: ${key}`);

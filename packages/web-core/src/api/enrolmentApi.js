@@ -39,6 +39,29 @@ export async function getItinerary(enrolmentId, { signal } = {}) {
   };
 }
 
+/**
+ * Trip documents of one type for one of the signed-in parent's own enrolments.
+ * The server resolves the trip from the enrolment; the client never names a trip.
+ * -> [{ id, displayName, mimeType, sizeBytes }]
+ */
+export async function getTripDocuments(enrolmentId, type, { signal } = {}) {
+  const data = await getJson(`/api/enrolments/${encodeURIComponent(enrolmentId)}/documents?type=${encodeURIComponent(type)}`, signal);
+  if (!data || !Array.isArray(data.documents)) throw new ApiError("SERVER_ERROR");
+  return data.documents
+    .filter((d) => d && typeof d.id === "string")
+    .map((d) => ({
+      id: String(d.id),
+      displayName: typeof d.displayName === "string" ? d.displayName : "document",
+      mimeType: typeof d.mimeType === "string" ? d.mimeType : "",
+      sizeBytes: Number.isFinite(d.sizeBytes) ? d.sizeBytes : 0,
+    }));
+}
+
+/** Returns the URL to download a parent-accessible trip document inline or as an attachment. */
+export function tripDocumentDownloadUrl(enrolmentId, documentId) {
+  return `/api/enrolments/${encodeURIComponent(enrolmentId)}/documents/${encodeURIComponent(documentId)}`;
+}
+
 /** User-facing text. Raw server text is never shown. */
 export function enrolmentErrorMessage(err) {
   switch (err?.code) {

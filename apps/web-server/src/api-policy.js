@@ -69,6 +69,9 @@ const POLICIES = {
     rule("POST", "/api/live-location/location", {}, 1 * KB),
     rule("POST", "/api/live-location/stop", {}, 1 * KB),
     rule("GET", `/api/school-logos/${SLUG}/${SLUG}`, VERSION),
+    // Parent-facing trip document access. The tripId is resolved by the API from the enrolment; parents never name a trip.
+    rule("GET", `/api/enrolments/${UUID}/documents`, { type: /^(itinerary|insurance|transport)$/ }),
+    rule("GET", `/api/enrolments/${UUID}/documents/${UUID}`),
     // Sales staff UI ships in every public portal build (vite-config.js __HAS_STAFF__=true). These are the same 13 routes
     // as the staff policy; the API enforces authorization on each one independently.
     rule("POST", "/api/admin/auth/login", {}, 8 * KB),

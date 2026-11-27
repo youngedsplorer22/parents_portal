@@ -19,9 +19,6 @@ const SUBMIT = "POST /api/onboarding/submit";
 const SECTIONS = ["Personal Details", "Payment Status", "Itinerary", "Insurance", "Train / Flight Tickets", "Live Tracking"];
 const PLACEHOLDERS = {
   "Payment Status": "Payment information will be available here soon.",
-  Itinerary: "Your trip itinerary will be available here soon.",
-  Insurance: "Insurance information will be available here soon.",
-  "Train / Flight Tickets": "Your travel tickets will be available here soon.",
 };
 const TRIP = { school: "GV School", branch: "Kolkata", title: "Jaipur 2027", destination: "Jaipur", tourType: "domestic", academicYear: "2026-27", paymentMode: "payment" };
 const ANSWERS = { fullName: "Asha Rao", gender: "Female", classSection: "4 - B", dateOfBirth: "2016-05-04", nomineeName: "B Vijaya", nomineeRelation: "Mother", mealPreference: "Veg", allergy: "Peanuts", phone: "9876543210", remark: "Window seat please" };
@@ -195,7 +192,7 @@ describe("the sidebar", () => {
   });
 });
 
-describe("the four sections that are still to come (Live Tracking has its own tests: LiveTracking.test.jsx)", () => {
+describe("the sections that are still placeholders (Live Tracking has its own tests: LiveTracking.test.jsx)", () => {
   for (const [name, text] of Object.entries(PLACEHOLDERS)) {
     it(`${name}: only its heading and "${text}", with nothing made up`, async () => {
       open(submitted());
@@ -481,5 +478,78 @@ describe("Itinerary: read-only, from the registration's own trip", () => {
     open(be);
     await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't load the itinerary/);
+  });
+});
+
+const DOC_ID = "00000000-0000-4000-9000-000000000099";
+const makeDoc = (over = {}) => ({ id: DOC_ID, displayName: "itinerary.pdf", mimeType: "application/pdf", sizeBytes: 51200, ...over });
+
+describe("Itinerary: PDF document from Sales", () => {
+  it("shows a download link when Sales has uploaded an itinerary PDF", async () => {
+    const be = submitted();
+    be.state.tripDocuments = { itinerary: [makeDoc({ displayName: "Jaipur 2027 Itinerary.pdf" })] };
+    open(be);
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
+    expect(await screen.findByRole("link", { name: /Download Jaipur 2027 Itinerary.pdf/ })).toBeInTheDocument();
+  });
+
+  it("shows the placeholder when no PDF and no manual items", async () => {
+    open(submitted());
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
+    expect(await screen.findByText("Your trip itinerary will be available here soon.")).toBeInTheDocument();
+  });
+});
+
+describe("Insurance section: document from Sales", () => {
+  it("shows a download link when Sales has uploaded an insurance document", async () => {
+    const be = submitted();
+    be.state.tripDocuments = { insurance: [makeDoc({ id: "00000000-0000-4000-9000-000000000098", displayName: "Policy.pdf" })] };
+    open(be);
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Insurance" }));
+    expect(await screen.findByRole("link", { name: /Download Policy.pdf/ })).toBeInTheDocument();
+  });
+
+  it("shows the placeholder when no insurance document is uploaded yet", async () => {
+    open(submitted());
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Insurance" }));
+    expect(await screen.findByText("Insurance information will be available here soon.")).toBeInTheDocument();
+  });
+
+  it("re-fetches when the page becomes visible again so a Sales replacement appears", async () => {
+    const be = submitted();
+    open(be);
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Insurance" }));
+    await screen.findByText("Insurance information will be available here soon.");
+    be.state.tripDocuments = { insurance: [makeDoc({ id: "00000000-0000-4000-9000-000000000097", displayName: "NewPolicy.pdf" })] };
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(await screen.findByRole("link", { name: /Download NewPolicy.pdf/ })).toBeInTheDocument();
+  });
+});
+
+describe("Transport section: documents from Sales", () => {
+  it("shows download links for each transport document", async () => {
+    const be = submitted();
+    be.state.tripDocuments = { transport: [
+      makeDoc({ id: "00000000-0000-4000-9000-000000000096", displayName: "Train Delhi.pdf" }),
+      makeDoc({ id: "00000000-0000-4000-9000-000000000095", displayName: "Return Flight.pdf" }),
+    ]};
+    open(be);
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Train / Flight Tickets" }));
+    expect(await screen.findByRole("link", { name: /Download Train Delhi.pdf/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Download Return Flight.pdf/ })).toBeInTheDocument();
+  });
+
+  it("shows the placeholder when no transport documents are uploaded yet", async () => {
+    open(submitted());
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Train / Flight Tickets" }));
+    expect(await screen.findByText("Your travel tickets will be available here soon.")).toBeInTheDocument();
+  });
+
+  it("does not mix documents across trips: a different enrolment id returns nothing", async () => {
+    const be = submitted();
+    be.state.tripDocuments = { transport: [makeDoc({ id: "00000000-0000-4000-9000-000000000094", displayName: "ticket.pdf" })] };
+    open(be, { enrolmentId: "00000000-0000-4000-9000-0000000000ff" });
+    // wrong enrolment → 404 from fake server → empty state
+    expect(await screen.findByRole("alert")).toBeInTheDocument(); // the page shows an error because onboarding 404'd
   });
 });

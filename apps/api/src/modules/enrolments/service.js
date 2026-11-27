@@ -1,6 +1,7 @@
 import { withTransaction } from "../../db/transaction.js";
 import { logoUrl } from "../catalog/logo.js";
 import { AppError } from "../email-otp/errors.js";
+import { DriveError } from "../pdf-storage/drive-client.js";
 import { paymentView } from "./payment.js";
 import * as repo from "./repository.js";
 
@@ -14,7 +15,9 @@ const tripView = (t) => ({ school: t.schoolName, title: t.title, destination: t.
  * The trip comes from its public page address (school, branch and trip words), resolved and checked on the server:
  * the trip must be public and open. The person never supplies an id. Enrolling twice in the same trip is a no-op.
  */
-export function createEnrolmentService({ db, catalog }) {
+const DOCUMENT_TYPES = new Set(["itinerary", "insurance", "transport"]);
+
+export function createEnrolmentService({ db, catalog, drive = null }) {
   async function enrol(auth, publicTrip, portal = null) {
     return withTransaction(db, async (client) => {
       const trip = await catalog.resolvePublicTripForRegistration(client, publicTrip, { portal });
@@ -74,5 +77,36 @@ export function createEnrolmentService({ db, catalog }) {
     };
   }
 
-  return { enrol, list, legacy, resume, itinerary };
+  /** Documents of one type for one of the caller's own enrolments. The tripId is resolved from the enrolment. */
+  async function listDocuments(auth, enrolmentId, type) {
+    if (typeof enrolmentId !== "string" || !UUID.test(enrolmentId)) throw new AppError(404, "NOT_FOUND", "Not found.");
+    if (!DOCUMENT_TYPES.has(type)) throw new AppError(400, "INVALID_TYPE", `type must be one of: ${[...DOCUMENT_TYPES].join(", ")}`);
+    const result = await repo.listDocumentsForEnrolment(db, auth.registrationId, enrolmentId, type);
+    if (!result) throw new AppError(404, "NOT_FOUND", "Not found.");
+    return result.documents.map((r) => ({
+      id: r.id,
+      displayName: r.display_name,
+      mimeType: r.mime_type,
+      sizeBytes: r.size_bytes,
+    }));
+  }
+
+  /** Streams a document that belongs to one of the caller's own enrolments from Drive. */
+  async function downloadDocument(auth, enrolmentId, documentId) {
+    if (typeof enrolmentId !== "string" || !UUID.test(enrolmentId)) throw new AppError(404, "NOT_FOUND", "Not found.");
+    if (typeof documentId !== "string" || !UUID.test(documentId)) throw new AppError(404, "NOT_FOUND", "Not found.");
+    if (!drive) throw new AppError(503, "DRIVE_NOT_CONFIGURED", "Document storage is not configured.");
+    const found = await repo.getDocumentForDownload(db, auth.registrationId, enrolmentId, documentId);
+    if (!found) throw new AppError(404, "NOT_FOUND", "Not found.");
+    let bytes;
+    try {
+      bytes = await drive.downloadFile(found.drive_file_id);
+    } catch (err) {
+      const code = err instanceof DriveError ? err.code : "INTERNAL";
+      throw new AppError(503, "DRIVE_DOWNLOAD_FAILED", `Could not retrieve the document (${code}).`);
+    }
+    return { bytes, mimeType: found.mime_type, displayName: found.display_name };
+  }
+
+  return { enrol, list, legacy, resume, itinerary, listDocuments, downloadDocument };
 }
