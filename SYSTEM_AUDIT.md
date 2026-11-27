@@ -9,26 +9,26 @@ The whole repository was audited when the Team Leader mobile app was added. "Unu
 
 | Area | State | Notes |
 |---|---|---|
-| `frontend/` (React 19 + Vite) | **Active** | Sales, Admin and Parent portals in one app. After cleanup, every source file is reachable from the entry point. |
-| `backend/` (Node 22, Express 5, PostgreSQL) | **Active** | All 11 modules are mounted and every file is reachable. Migrations 001–018 are all required by existing installations; rollbacks for 016–018. |
-| `mobile/` (Expo SDK 57, RN 0.86.3, TypeScript) | **New** | Team Leader app; see `MOBILE_APP.md`. |
-| Browser live-location sharing (`frontend/src/liveLocation/sharer.js`, `liveSharing.js`) | **Kept, intentionally** | It overlaps with the mobile app's sharing, but per instructions it stays until the app is verified on real devices. Both use the **same** server rules (one backend implementation). |
+| `packages/web-core/` (React 19 + Vite) | **Active** | Sales, Admin and Parent portals in one app. After cleanup, every source file is reachable from the entry point. |
+| `apps/api/` (Node 22, Express 5, PostgreSQL) | **Active** | All 11 modules are mounted and every file is reachable. Migrations 001–018 are all required by existing installations; rollbacks for 016–018. |
+| `apps/mobile/` (Expo SDK 57, RN 0.86.3, TypeScript) | **New** | Team Leader app; see `MOBILE_APP.md`. |
+| Browser live-location sharing (`packages/web-core/src/liveLocation/sharer.js`, `liveSharing.js`) | **Kept, intentionally** | It overlaps with the mobile app's sharing, but per instructions it stays until the app is verified on real devices. Both use the **same** server rules (one backend implementation). |
 | `trip_links` table + `RetiredLink.jsx` | **Kept** | The old single-use parent links, retired by migration 014. Kept as audit history and for old link addresses (shows "this link was replaced"). |
 | `GET /api/admin/audit` | **Kept** | Server-side audit log, deliberately with no screen (earlier decision). Admin-only. |
-| `backend/scripts/erase-retired-link-hashes.sql` | **Kept** | A documented, optional, manually-approved data step (README, migration 014). |
+| `apps/api/scripts/erase-retired-link-hashes.sql` | **Kept** | A documented, optional, manually-approved data step (README, migration 014). |
 | `body.admin-page` class | **Removed** (see 2) | Only existed to re-enable scrolling, which is now the default everywhere. |
 | Dependencies | All used | Packages without a source import are used by config: `@tailwindcss/vite` and `tailwindcss` (Vite config + CSS `@import`), the ESLint plugins (eslint config), `jsdom` (Vitest), `@fontsource/*` (loaded by path in the PDF module), `pdfjs-dist` (PDF tests). |
-| `backend/.env.example` vs `config.js` | Consistent | Every documented variable is read by the code, and every variable the code reads is documented. |
+| `apps/api/.env.example` vs `config.js` | Consistent | Every documented variable is read by the code, and every variable the code reads is documented. |
 
 ## 2. Removed (with evidence)
 
 | Removed | Evidence | Check after removal |
 |---|---|---|
-| `frontend/src/components/auth/AuthLayout.jsx` | Zero imports anywhere; the only match for "AuthLayout" is the unrelated `StaffAuthLayout`. Unreachable from `src/main.jsx`. Original template file (first commit). | Frontend tests 659/659, lint, build |
-| `frontend/src/components/auth/OtpInput.jsx` | Zero imports. The OTP step uses its own boxes in `EmailOtpStep.jsx`. Template file. | same |
-| `frontend/src/components/auth/SocialLoginButton.jsx` | Zero imports. The social buttons are inline in `App.jsx`. Template file. | same |
-| `frontend/public/background_image.jpg`, `fuji.jpg`, `japan.jpg`, `mountain.jpg`, `trying.png` (1.8 MB) | Zero references in source, CSS, HTML, backend, docs or tests. The page background is `try.png` (kept). | same |
-| `frontend/public/favicon.svg` | Zero references. The tab icon is `only_logo.png` (kept). Its `<link>` declared the wrong type (`image/svg+xml`); fixed to `image/png`. | same |
+| `packages/web-core/src/components/auth/AuthLayout.jsx` | Zero imports anywhere; the only match for "AuthLayout" is the unrelated `StaffAuthLayout`. Unreachable from `src/main.jsx`. Original template file (first commit). | Frontend tests 659/659, lint, build |
+| `packages/web-core/src/components/auth/OtpInput.jsx` | Zero imports. The OTP step uses its own boxes in `EmailOtpStep.jsx`. Template file. | same |
+| `packages/web-core/src/components/auth/SocialLoginButton.jsx` | Zero imports. The social buttons are inline in `App.jsx`. Template file. | same |
+| `packages/web-core/public/background_image.jpg`, `fuji.jpg`, `japan.jpg`, `mountain.jpg`, `trying.png` (1.8 MB) | Zero references in source, CSS, HTML, backend, docs or tests. The page background is `try.png` (kept). | same |
+| `packages/web-core/public/favicon.svg` | Zero references. The tab icon is `only_logo.png` (kept). Its `<link>` declared the wrong type (`image/svg+xml`); fixed to `image/png`. | same |
 | `document.body.classList` "admin-page" effect in `StaffApp.jsx`, and the `body.admin-page` CSS | Only re-enabled scrolling, which `<body>` no longer blocks anywhere (the registration-clipping fix). The three tests that asserted the class now assert that nothing locks the page. | same |
 
 All removed files are in git's first commit (`git checkout -- <path>` restores them). Nothing is staged or committed.
@@ -74,7 +74,7 @@ All removed files are in git's first commit (`git checkout -- <path>` restores t
 |---|---|---|
 | **`body-parser` 2.3.0** (GHSA-27r3-jxmh-p828): DoS via trailing bytes after a *compressed* body | High in general, **not reachable here** | Every parser uses `inflate: false`, so compressed bodies are refused before decompression (new test proves it: 415, or 401 before any body is read). The fixed version (2.4.0) was published 2026-10-22; **upgrade after 2026-11-05** (two-week rule). |
 | **`nodemailer` 10.0.15** (address parser: quotes, comments, `;`, `>`) | Moderate, **not reachable here** | Email validation only accepts plain addresses, with no quotes, comments, groups or brackets, before anything reaches the mailer. The fix (10.2.1) was published 2026-10-22; **upgrade after 2026-11-05**. |
-| `mobile/` audit: `node-forge`, `zod` 3, `uuid`, `xcode` (7 issues) | High/moderate in **build tooling only** | All inside `@expo/cli` / `@expo/config-plugins`, which run on the developer's computer and are not in the app (the shipped JS bundle contains none of them). Fixes require a newer Expo CLI. Revisit with the next Expo SDK update. |
+| `apps/mobile/` audit: `node-forge`, `zod` 3, `uuid`, `xcode` (7 issues) | High/moderate in **build tooling only** | All inside `@expo/cli` / `@expo/config-plugins`, which run on the developer's computer and are not in the app (the shipped JS bundle contains none of them). Fixes require a newer Expo CLI. Revisit with the next Expo SDK update. |
 | Frontend audit | none | 0 vulnerabilities |
 | Secrets | OK | `.env` is ignored in all three projects; no keys or tokens in tracked or untracked source; the app contains no secrets (the API address is public). |
 | Mobile token storage | OK | Keychain / Keystore via `expo-secure-store` (after first unlock, this device only); Android backups off. |

@@ -1,0 +1,12 @@
+{
+  "name": "@pp/web-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Tiny zero-dependency server every portal frontend runs on Railway: serves its built files and forwards /api to the shared API, so the browser only ever talks to one origin (cookies stay same-site, no CORS).",
+  "engines": { "node": "^22.22.2 || ^24.15.0" },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test \"test/**/*.test.js\""
+  }
+}

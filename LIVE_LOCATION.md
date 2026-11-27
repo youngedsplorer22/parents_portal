@@ -72,7 +72,7 @@ A website can only read the location while its page is open and in front.
 | No GPS fix, or it takes too long | A warning is shown and the page tries again a minute later. |
 | Low accuracy (more than 500 m) | Still sent. The team lead sees a note, and parents see "Approximate (within about 1.8 km)". |
 
-**Sharing with the screen off: use the Team Leader mobile app** (`mobile/`, see `MOBILE_APP.md`). It uses the
+**Sharing with the screen off: use the Team Leader mobile app** (`apps/mobile/`, see `MOBILE_APP.md`). It uses the
 phone's native background location (an Android foreground service, the iOS location background mode) and the same
 server rules as the web page. The browser version on this page remains for team leads without the app; it only works
 while the page is open.
@@ -133,7 +133,7 @@ Each upload is about 200 bytes and each answer under 1 KB, so this is negligible
   yourself. The provider is a setting, so switching needs no code changes:
 
   ```
-  # frontend, at build time (e.g. frontend/.env.production)
+  # frontend, at build time (e.g. packages/web-core/.env.production)
   VITE_MAP_TILE_URL=https://tiles.example.com/{z}/{x}/{y}.png
   VITE_MAP_TILE_ATTRIBUTION=&copy; Example Maps &copy; OpenStreetMap contributors
   ```
@@ -141,8 +141,8 @@ Each upload is about 200 bytes and each answer under 1 KB, so this is negligible
 ## Technical summary
 
 - Migration `018_trip_live_location.sql` adds the `trip_live_locations` table and the trip-end trigger. Rollback:
-  `backend/src/db/rollbacks/018_trip_live_location.down.sql`.
-- Parent and team-lead API, using the parent sign-in (`backend/src/modules/live-location/routes.js`):
+  `apps/api/src/db/rollbacks/018_trip_live_location.down.sql`.
+- Parent and team-lead API, using the parent sign-in (`apps/api/src/modules/live-location/routes.js`):
   - `GET /api/live-location?enrolment=…`
   - `POST /api/live-location/start`
   - `POST /api/live-location/location` with `{enrolmentId, latitude, longitude, accuracy, capturedAt}`
@@ -150,7 +150,7 @@ Each upload is about 200 bytes and each answer under 1 KB, so this is negligible
 - Staff API, for staff who manage the trip (`staff-routes.js`):
   - `GET /api/admin/trips/:id/live-location`
   - `PUT /api/admin/trips/:id/live-location/team-lead` with `{enrolmentId | null}`
-- Settings (`DEFAULT_LIVE_LOCATION_POLICY` in `backend/src/modules/live-location/service.js`):
+- Settings (`DEFAULT_LIVE_LOCATION_POLICY` in `apps/api/src/modules/live-location/service.js`):
 
   | Setting | Value |
   |---|---|
@@ -162,7 +162,7 @@ Each upload is about 200 bytes and each answer under 1 KB, so this is negligible
   | Retention | 24 h |
 
   Per-person rate limits: 120 reads and 60 writes per 10 minutes.
-- The phone side is `frontend/src/liveLocation/`:
+- The phone side is `packages/web-core/src/liveLocation/`:
   - `sharer.js`: the 5-minute loop, using one timer and never `setInterval`
   - `liveSharing.js`: one loop per page, the screen wake lock, and catching up when the page is visible or online again
   - `LiveMap.jsx`: the Leaflet map, downloaded only when a map is shown

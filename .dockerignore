@@ -1,0 +1,41 @@
+# Exclude local dependency installs — the Docker build stage runs its own npm install.
+node_modules/
+
+# Exclude secrets and local environment files. These are gitignored and should never
+# enter a build layer even if present on a developer's machine.
+.env
+.env.*
+.pgpass
+*.pem
+*.key
+client_secret*.json
+credentials*.json
+service-account*.json
+
+# Exclude local database files.
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.backup
+pgdata/
+postgres-data/
+
+# Exclude previous build output — the build stage regenerates it from source.
+dist/
+build/
+coverage/
+
+# Exclude VCS and editor metadata.
+.git/
+.idea/
+.vscode/
+.claude/
+
+# Exclude logs.
+logs/
+*.log
+npm-debug.log*
+
+# package-lock.json is intentionally NOT excluded: npm install uses it to reproduce
+# the exact dependency tree.

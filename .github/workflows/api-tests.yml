@@ -1,0 +1,61 @@
+name: API tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The test scripts load apps/api/.env via --env-file=.env.
+      # Only TEST_DATABASE_URL is needed; the harness builds the app from
+      # inline test config and never reads env vars for auth or OTP secrets.
+      - name: Write test env file
+        run: |
+          echo "TEST_DATABASE_URL=postgresql://postgres:postgres@localhost/parents_portal_test" > apps/api/.env
+
+      # The service container only creates the default "postgres" database.
+      # Create the isolated test database before migrations run.
+      - name: Create test database
+        run: psql -h localhost -U postgres -c "CREATE DATABASE parents_portal_test;"
+        env:
+          PGPASSWORD: postgres
+
+      # npm run migrate reads TEST_DATABASE_URL from apps/api/.env (--env-file=.env).
+      # --test targets TEST_DATABASE_URL only; it never touches DATABASE_URL.
+      - name: Migrate test database
+        run: npm run migrate -w @pp/api -- --test
+
+      # node --test with --test-concurrency=1 runs all test/**/*.test.js serially.
+      # Every test file calls createTestPool() which enforces localhost + parents_portal_test.
+      - name: Run API tests
+        run: npm run test -w @pp/api

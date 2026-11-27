@@ -1,8 +1,8 @@
 # Sign-in sessions: access and refresh tokens
 
 How parents (`/api/auth`) and staff (`/api/admin/auth`, Admin and Sales) stay signed in, and every way a sign-in ends.
-Code: `backend/src/modules/sessions/` (shared engine and cookies), `auth/` (parents), `staff/` (staff),
-`frontend/src/api/http.js` (automatic renewal). Migration `017_access_refresh_tokens.sql`.
+Code: `apps/api/src/modules/sessions/` (shared engine and cookies), `auth/` (parents), `staff/` (staff),
+`packages/web-core/src/api/http.js` (automatic renewal). Migration `017_access_refresh_tokens.sql`.
 
 ## Policy
 
@@ -62,7 +62,7 @@ No sign-in outlives its absolute limit, however active the person is.
   10 minutes (a code default, `DEFAULT_REFRESH_LIMIT` in `auth/routes.js`; not an environment setting) and a disabled
   staff account can't refresh.
 
-## The page: automatic renewal (`frontend/src/api/http.js`, `apiFetch`)
+## The page: automatic renewal (`packages/web-core/src/api/http.js`, `apiFetch`)
 
 - A protected request answered **401 `UNAUTHENTICATED`** triggers one renewal followed by one repeat of the request.
   A second 401 is passed to the screen, so there is never a loop.

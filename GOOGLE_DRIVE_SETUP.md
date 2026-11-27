@@ -29,7 +29,7 @@ Google Drive of you@example.com
 A service account is a robot Google account. It has **no Drive storage of its own**, and it cannot store files in a personal
 Gmail Drive (uploads fail with `storageQuotaExceeded`), even if you share a folder with it. So the portal instead acts **on
 behalf of your Google account**, with your one-time permission (OAuth). The permission is kept as a *refresh token* in
-`backend/.env`, a file that Git ignores.
+`apps/api/.env`, a file that Git ignores.
 
 ---
 
@@ -61,9 +61,9 @@ Use the browser profile where you are signed in as **you@example.com**.
    - A box shows a **Client ID** and a **Client secret**. Copy both. (You do not need to download the JSON file. If you do,
      keep it out of the project folder; Git is set to ignore `client_secret*.json` as a safety net.)
 
-## Step 2: Tell the portal (edit `backend/.env`)
+## Step 2: Tell the portal (edit `apps/api/.env`)
 
-Open `backend/.env` in your editor and add these lines (this file is private; **never commit it, paste it into a chat or send
+Open `apps/api/.env` in your editor and add these lines (this file is private; **never commit it, paste it into a chat or send
 it to anyone**):
 
 ```
@@ -78,7 +78,7 @@ GOOGLE_OAUTH_CLIENT_SECRET=<paste the Client secret>
 In a terminal:
 
 ```bash
-cd backend
+cd apps/api
 npm run drive:authorize
 ```
 
@@ -93,7 +93,7 @@ npm run drive:authorize
    GOOGLE_DRIVE_REFRESH_TOKEN=1//0abc...
    ```
 
-6. Paste that line into `backend/.env`. Keep it secret. (It is like a password for the portal's Drive folder.)
+6. Paste that line into `apps/api/.env`. Keep it secret. (It is like a password for the portal's Drive folder.)
 
 If it says you signed in as a different account, nothing was saved: run the command again and pick the right account.
 
@@ -152,7 +152,7 @@ SELECT status, last_error_code, attempts, stored_at FROM registration_pdfs ORDER
 
 ## Moving to a different Google account later
 
-1. In `backend/.env` change `GOOGLE_DRIVE_ACCOUNT` to the new address.
+1. In `apps/api/.env` change `GOOGLE_DRIVE_ACCOUNT` to the new address.
 2. Run `npm run drive:authorize` and sign in as the **new** account; replace `GOOGLE_DRIVE_REFRESH_TOKEN`
    (the OAuth client can stay the same).
 3. Run `npm run drive:check`, then restart the backend.
@@ -168,7 +168,7 @@ a small imitation of Google's API that lives in the test folder.
 
 ## Keeping it safe
 
-- `backend/.env` is ignored by Git. The example file `backend/.env.example` holds placeholders only.
+- `apps/api/.env` is ignored by Git. The example file `apps/api/.env.example` holds placeholders only.
 - The refresh token and client secret are never sent to the browser, never written to logs, and never appear in any API reply.
   The server's log lines contain only a short code and the registration reference.
 - To switch the portal's access off at any time: <https://myaccount.google.com/permissions> → Young Edsplorer Portal → **Remove
