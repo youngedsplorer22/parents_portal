@@ -11,6 +11,7 @@ import {
 } from "./adminApi.js";
 import { useStaff } from "./staffContext.js";
 import { attempt, useAdminData } from "./useAdminData.js";
+import DocPreview from "../components/dashboard/DocPreview.jsx";
 
 const TABS = [
   { key: "logo", label: "School logo", Icon: Image },
@@ -293,6 +294,14 @@ function DocumentUploadSection({ tripId, type, docs, docsStatus, docsError, relo
                         <Trash2 size={15} aria-hidden="true" /> Delete
                       </button>
                     )}
+                  </div>
+                  <div className="admin-doc-preview">
+                    <DocPreview
+                      url={tripDocumentDownloadUrl(tripId, doc.id)}
+                      mimeType={doc.mimeType}
+                      displayName={doc.displayName}
+                      showDownload={false}
+                    />
                   </div>
                 </li>
               ))}

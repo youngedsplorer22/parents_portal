@@ -2095,6 +2095,7 @@ button {
 .admin-doc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .admin-doc-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
 .admin-doc-empty { margin: 0 0 10px; }
+.admin-doc-preview { flex-basis: 100%; margin-top: 8px; }
 
 /* Logo preview */
 .admin-logo-preview { margin: 10px 0 14px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-lg, 12px); background: var(--surface); display: inline-flex; }
@@ -2118,8 +2119,15 @@ button {
 .itinerary-details { margin: 6px 0 0; white-space: pre-line; color: var(--muted, #475569); }
 
 /* Parent-facing trip document list (itinerary PDF, insurance, transport) */
-.trip-doc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-width: 640px; }
-.trip-doc-item { display: flex; }
+.trip-doc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; max-width: 900px; }
+.trip-doc-item { display: block; }
 .trip-doc-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg, 12px); background: var(--surface); color: var(--brand, #2364e8); font-size: 14px; font-weight: 600; text-decoration: none; word-break: break-all; }
 .trip-doc-link:hover { background: var(--brand-soft, #eaf1ff); border-color: #c3d5fc; }
 .trip-doc-link svg { flex: none; }
+
+/* Inline document preview (PDF iframe / image) — used in both portals */
+.doc-preview-wrap { display: grid; gap: 10px; }
+.doc-preview-frame { width: 100%; min-height: 400px; max-height: 70vh; border: 1px solid var(--line); border-radius: var(--radius-lg, 12px); display: block; }
+.doc-preview-img-wrap { border: 1px solid var(--line); border-radius: var(--radius-lg, 12px); background: var(--canvas); padding: 12px; display: flex; justify-content: center; overflow: hidden; max-width: 100%; }
+.doc-preview-img { max-width: 100%; max-height: 400px; object-fit: contain; display: block; }
+.doc-preview-fallback { font-size: 0.8rem; color: var(--text-muted, #888); margin: 0; }

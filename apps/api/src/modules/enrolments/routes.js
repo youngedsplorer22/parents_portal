@@ -34,11 +34,15 @@ export function createEnrolmentRouter({ service, requireSession }) {
     const INLINE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
     const disposition = INLINE_TYPES.has(mimeType) ? "inline" : "attachment";
     const safeName = displayName.replace(/[^\w. ()-]/g, "_").slice(0, 200);
+    // PDF/image served inline must not carry `sandbox` in CSP: Firefox's PDF.js viewer runs as
+    // JavaScript inside the iframe and sandbox (without allow-scripts) silently blocks it.
+    // For non-inline types (forced download) the sandbox adds an extra layer of defence.
+    const csp = INLINE_TYPES.has(mimeType) ? "default-src 'none'" : "default-src 'none'; sandbox";
     res.set({
       "Content-Type": mimeType,
       "Content-Disposition": `${disposition}; filename="${safeName}"`,
       "X-Content-Type-Options": "nosniff",
-      "Content-Security-Policy": "default-src 'none'; sandbox",
+      "Content-Security-Policy": csp,
       "Cache-Control": "no-store",
     });
     res.send(bytes);

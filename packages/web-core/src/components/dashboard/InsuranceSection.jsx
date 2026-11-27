@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Download, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { getTripDocuments, tripDocumentDownloadUrl } from "../../api/enrolmentApi.js";
+import DocPreview from "./DocPreview.jsx";
 
 /**
  * Dashboard > Insurance. Shows the insurance document uploaded by Sales for this trip.
@@ -33,8 +34,14 @@ export default function InsuranceSection({ section, headingRef, enrolmentId, onS
   return (
     <section className="dashboard-section" aria-labelledby="dashboard-title">
       <h1 id="dashboard-title" className="dashboard-title" ref={headingRef} tabIndex={-1}>{section.label}</h1>
-      {state.status === "loading" && <p className="dashboard-placeholder" role="status"><LoaderCircle size={16} className="spin" aria-hidden="true" /> Loading insurance information…</p>}
-      {state.status === "error" && <p className="dashboard-placeholder" role="alert">We couldn't load the insurance information just now. Please try again in a moment.</p>}
+      {state.status === "loading" && (
+        <p className="dashboard-placeholder" role="status">
+          <LoaderCircle size={16} className="spin" aria-hidden="true" /> Loading insurance information…
+        </p>
+      )}
+      {state.status === "error" && (
+        <p className="dashboard-placeholder" role="alert">We couldn't load the insurance information just now. Please try again in a moment.</p>
+      )}
       {state.status === "ready" && state.docs.length === 0 && (
         <p className="dashboard-placeholder">Insurance information will be available here soon.</p>
       )}
@@ -42,16 +49,11 @@ export default function InsuranceSection({ section, headingRef, enrolmentId, onS
         <ul className="trip-doc-list" aria-label="Insurance documents">
           {state.docs.map((doc) => (
             <li key={doc.id} className="trip-doc-item">
-              <a
-                href={tripDocumentDownloadUrl(enrolmentId, doc.id)}
-                className="trip-doc-link"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Download ${doc.displayName}`}
-              >
-                <Download size={15} aria-hidden="true" />
-                <span>{doc.displayName}</span>
-              </a>
+              <DocPreview
+                url={tripDocumentDownloadUrl(enrolmentId, doc.id)}
+                mimeType={doc.mimeType}
+                displayName={doc.displayName}
+              />
             </li>
           ))}
         </ul>

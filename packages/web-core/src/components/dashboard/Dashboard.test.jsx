@@ -436,77 +436,79 @@ describe("wording", () => {
   });
 });
 
-describe("Itinerary: read-only, from the registration's own trip", () => {
-  const ITEMS = [
-    { id: "i2", dayNumber: 2, position: 0, title: "Amer Fort", details: "Morning visit.", updatedAt: "2026-10-27T08:00:00.000Z" },
-    { id: "i1", dayNumber: 1, position: 0, title: "Arrive in Jaipur", details: null, updatedAt: "2026-10-27T08:00:00.000Z" },
-  ];
-  it("shows what Sales entered for this trip, with no edit control of any kind", async () => {
+const DOC_ID = "00000000-0000-4000-9000-000000000099";
+const makeDoc = (over = {}) => ({ id: DOC_ID, displayName: "itinerary.pdf", mimeType: "application/pdf", sizeBytes: 51200, ...over });
+
+describe("Itinerary section: PDF preview, no manual entries, no trip banner", () => {
+  it("does not show manual itinerary entries even when the server has them", async () => {
     const be = submitted();
-    be.state.itinerary = ITEMS;
+    be.state.itinerary = [
+      { id: "i1", dayNumber: 1, position: 0, title: "Arrive in Jaipur", details: null, updatedAt: "2026-10-27T08:00:00.000Z" },
+    ];
     open(be);
     await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
-    const list = await screen.findByRole("list", { name: "Trip itinerary" });
-    expect(within(list).getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Day 2: Amer Fort", "Day 1: Arrive in Jaipur"]);
-    expect(within(list).getByText("Morning visit.")).toBeInTheDocument();
-    expect(main().querySelectorAll("input, textarea, select")).toHaveLength(0);
-    expect(within(main()).queryByRole("button")).not.toBeInTheDocument();
-    expect(be.calls().filter((c) => /itinerary/.test(c.key))).toEqual([expect.objectContaining({ key: `GET /api/enrolments/${ENROLMENT}/itinerary` })]);
+    await screen.findByText("Your trip itinerary will be available here soon.");
+    expect(screen.queryByRole("list", { name: "Trip itinerary" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Day 1:/)).not.toBeInTheDocument();
+    expect(be.calls().filter((c) => c.key === `GET /api/enrolments/${ENROLMENT}/itinerary`)).toHaveLength(0);
   });
 
-  it("with nothing entered yet, says it will be available soon", async () => {
+  it("does not show the trip title or destination banner in the Itinerary section", async () => {
+    open(submitted());
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
+    await screen.findByText("Your trip itinerary will be available here soon.");
+    expect(within(main()).queryByText(/Jaipur 2027/)).not.toBeInTheDocument();
+    expect(within(main()).queryByText(/Jaipur/)).not.toBeInTheDocument();
+  });
+
+  it("shows an iframe preview and download link when Sales has uploaded an itinerary PDF", async () => {
+    const be = submitted();
+    be.state.tripDocuments = { itinerary: [makeDoc({ displayName: "Jaipur 2027 Itinerary.pdf" })] };
+    open(be);
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
+    expect(await screen.findByRole("link", { name: /Download Jaipur 2027 Itinerary.pdf/ })).toBeInTheDocument();
+    const frame = main().querySelector('iframe[title="Jaipur 2027 Itinerary.pdf"]');
+    expect(frame).toBeInTheDocument();
+    expect(frame.src).toContain(`/api/enrolments/${ENROLMENT}/documents/${DOC_ID}`);
+  });
+
+  it("shows the placeholder when no PDF has been uploaded", async () => {
     open(submitted());
     await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
     expect(await screen.findByText("Your trip itinerary will be available here soon.")).toBeInTheDocument();
   });
 
-  it("asks the server again when the section is opened, so a Sales update appears without a new login", async () => {
+  it("re-fetches when the page becomes visible again so a Sales upload appears without a re-login", async () => {
     const be = submitted();
     open(be);
-    const nav = await screen.findByRole("navigation", { name: "Dashboard sections" });
-    await user.click(within(nav).getByRole("link", { name: "Itinerary" }));
+    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
     await screen.findByText("Your trip itinerary will be available here soon.");
-    await user.click(within(nav).getByRole("link", { name: "Insurance" }));
-    be.state.itinerary = ITEMS; // Sales added items meanwhile
-    await user.click(within(nav).getByRole("link", { name: "Itinerary" }));
-    expect(await screen.findByText("Day 1: Arrive in Jaipur")).toBeInTheDocument();
+    be.state.tripDocuments = { itinerary: [makeDoc({ displayName: "Jaipur 2027 Itinerary.pdf" })] };
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(await screen.findByRole("link", { name: /Download Jaipur 2027 Itinerary.pdf/ })).toBeInTheDocument();
   });
 
-  it("a server refusal shows a calm message, and a stale session ends the page", async () => {
+  it("a server refusal shows a calm message", async () => {
     const be = submitted();
-    be.queue(`GET /api/enrolments/${ENROLMENT}/itinerary`, apiError(500, "SERVER_ERROR"));
+    be.queue(`GET /api/enrolments/${ENROLMENT}/documents`, apiError(500, "SERVER_ERROR"));
     open(be);
     await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't load the itinerary/);
   });
 });
 
-const DOC_ID = "00000000-0000-4000-9000-000000000099";
-const makeDoc = (over = {}) => ({ id: DOC_ID, displayName: "itinerary.pdf", mimeType: "application/pdf", sizeBytes: 51200, ...over });
-
-describe("Itinerary: PDF document from Sales", () => {
-  it("shows a download link when Sales has uploaded an itinerary PDF", async () => {
-    const be = submitted();
-    be.state.tripDocuments = { itinerary: [makeDoc({ displayName: "Jaipur 2027 Itinerary.pdf" })] };
-    open(be);
-    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
-    expect(await screen.findByRole("link", { name: /Download Jaipur 2027 Itinerary.pdf/ })).toBeInTheDocument();
-  });
-
-  it("shows the placeholder when no PDF and no manual items", async () => {
-    open(submitted());
-    await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Itinerary" }));
-    expect(await screen.findByText("Your trip itinerary will be available here soon.")).toBeInTheDocument();
-  });
-});
-
 describe("Insurance section: document from Sales", () => {
-  it("shows a download link when Sales has uploaded an insurance document", async () => {
+  const INS_ID = "00000000-0000-4000-9000-000000000098";
+
+  it("shows an iframe preview and download link when Sales has uploaded an insurance document", async () => {
     const be = submitted();
-    be.state.tripDocuments = { insurance: [makeDoc({ id: "00000000-0000-4000-9000-000000000098", displayName: "Policy.pdf" })] };
+    be.state.tripDocuments = { insurance: [makeDoc({ id: INS_ID, displayName: "Policy.pdf" })] };
     open(be);
     await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Insurance" }));
     expect(await screen.findByRole("link", { name: /Download Policy.pdf/ })).toBeInTheDocument();
+    const frame = main().querySelector('iframe[title="Policy.pdf"]');
+    expect(frame).toBeInTheDocument();
+    expect(frame.src).toContain(`/api/enrolments/${ENROLMENT}/documents/${INS_ID}`);
   });
 
   it("shows the placeholder when no insurance document is uploaded yet", async () => {
@@ -527,16 +529,22 @@ describe("Insurance section: document from Sales", () => {
 });
 
 describe("Transport section: documents from Sales", () => {
-  it("shows download links for each transport document", async () => {
+  it("shows an iframe preview and download link for each transport document", async () => {
     const be = submitted();
+    const T1 = "00000000-0000-4000-9000-000000000096";
+    const T2 = "00000000-0000-4000-9000-000000000095";
     be.state.tripDocuments = { transport: [
-      makeDoc({ id: "00000000-0000-4000-9000-000000000096", displayName: "Train Delhi.pdf" }),
-      makeDoc({ id: "00000000-0000-4000-9000-000000000095", displayName: "Return Flight.pdf" }),
+      makeDoc({ id: T1, displayName: "Train Delhi.pdf" }),
+      makeDoc({ id: T2, displayName: "Return Flight.pdf" }),
     ]};
     open(be);
     await user.click(await within(await screen.findByRole("navigation", { name: "Dashboard sections" })).findByRole("link", { name: "Train / Flight Tickets" }));
     expect(await screen.findByRole("link", { name: /Download Train Delhi.pdf/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Download Return Flight.pdf/ })).toBeInTheDocument();
+    const frames = main().querySelectorAll("iframe");
+    expect(frames).toHaveLength(2);
+    expect(frames[0].src).toContain(`/api/enrolments/${ENROLMENT}/documents/${T1}`);
+    expect(frames[1].src).toContain(`/api/enrolments/${ENROLMENT}/documents/${T2}`);
   });
 
   it("shows the placeholder when no transport documents are uploaded yet", async () => {

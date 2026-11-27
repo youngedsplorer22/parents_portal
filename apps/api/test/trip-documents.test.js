@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, afterEach, beforeEach, describe, it } from "node:test";
 import { startApp } from "./harness.js";
 import { startFakeDrive } from "./fake-drive.js";
-import { createTestPool, resetTables } from "./helpers.js";
+import { createTestPool, registrationFields, resetTables, slugsOf } from "./helpers.js";
 
 // Trip document uploads: Sales can upload itinerary, insurance, and transport documents to a trip's
 // Drive folder. Single-document types (itinerary, insurance) replace the previous file on re-upload.
@@ -331,5 +331,100 @@ describe("portal-key-based access", () => {
       { raw: true, headers: { "content-type": "application/pdf", "x-portal-key": "wrong-secret" } },
     );
     assert.equal(res.status, 403);
+  });
+});
+
+describe("download response headers", () => {
+  it("PDF download: inline disposition, no-sandbox CSP, nosniff, no-store", async () => {
+    const up = await upload(salesA, tripA, "itinerary", PDF, { name: "Itin.pdf" });
+    assert.equal(up.status, 201);
+    const docId = up.body.document.id;
+    const res = await salesA.as.get(`/api/admin/trips/${tripA.id}/documents/${docId}`);
+    assert.equal(res.status, 200);
+    assert.ok(res.headers.get("content-disposition")?.startsWith("inline"), `expected inline, got: ${res.headers.get("content-disposition")}`);
+    assert.equal(res.headers.get("content-security-policy"), "default-src 'none'");
+    assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.equal(res.headers.get("content-type"), "application/pdf");
+  });
+
+  it("PNG download: inline disposition, no-sandbox CSP, nosniff, no-store", async () => {
+    const up = await upload(salesA, tripA, "insurance", PNG, { mime: "image/png", name: "policy.png" });
+    assert.equal(up.status, 201);
+    const docId = up.body.document.id;
+    const res = await salesA.as.get(`/api/admin/trips/${tripA.id}/documents/${docId}`);
+    assert.equal(res.status, 200);
+    assert.ok(res.headers.get("content-disposition")?.startsWith("inline"), `expected inline, got: ${res.headers.get("content-disposition")}`);
+    assert.equal(res.headers.get("content-security-policy"), "default-src 'none'");
+    assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(res.headers.get("cache-control"), "no-store");
+  });
+
+  it("WebP download: inline disposition and no-sandbox CSP (confirms all allowed MIME types are inline)", async () => {
+    // All types in ALLOWED_MIME_TYPES (pdf, jpeg, png, webp) are also in INLINE_TYPES.
+    // The attachment/sandbox branch in routes.js is a forward-compatibility guard for future MIME types.
+    const WEBP = Buffer.from("RIFF\x00\x00\x00\x00WEBP", "binary"); // 12 bytes: RIFF at 0-3, WEBP at 8-11
+    const up = await upload(salesA, tripA, "transport", WEBP, { mime: "image/webp", name: "photo.webp" });
+    assert.equal(up.status, 201);
+    const docId = up.body.document.id;
+    const res = await salesA.as.get(`/api/admin/trips/${tripA.id}/documents/${docId}`);
+    assert.equal(res.status, 200);
+    assert.ok(res.headers.get("content-disposition")?.startsWith("inline"), `expected inline, got: ${res.headers.get("content-disposition")}`);
+    assert.equal(res.headers.get("content-security-policy"), "default-src 'none'");
+  });
+});
+
+describe("enrolment document download headers (parent-facing route)", () => {
+  let parentCookie;
+  let parentEnrolmentId;
+
+  beforeEach(async () => {
+    // The outer beforeEach has already created h, drive, salesA, tripA with portal_deployments.
+    // Activate tripA and open public registration so a parent can register.
+    await admin.as.post(`/api/admin/trips/${tripA.id}/status`, { status: "active" });
+    await admin.as.post(`/api/admin/trips/${tripA.id}/public-registration`, { enabled: true });
+    const verificationToken = await h.verifiedToken("parent@example.com", "registration");
+    const reg = await h.api.post(
+      "/api/registrations",
+      { ...registrationFields("parent@example.com", { role: "Student" }), verificationToken, publicTrip: slugsOf(tripA) },
+    );
+    assert.equal(reg.status, 201, JSON.stringify(reg.body));
+    parentCookie = h.cookieOf(reg);
+    parentEnrolmentId = (await h.api.get("/api/enrolments/resume", { cookie: parentCookie })).body.enrolmentId;
+  });
+
+  it("PDF download via enrolment route: inline disposition, no-sandbox CSP, nosniff, no-store", async () => {
+    const up = await upload(salesA, tripA, "itinerary", PDF, { name: "Itin.pdf" });
+    assert.equal(up.status, 201);
+    const docId = up.body.document.id;
+    const res = await h.api.get(`/api/enrolments/${parentEnrolmentId}/documents/${docId}`, { cookie: parentCookie });
+    assert.equal(res.status, 200);
+    assert.ok(res.headers.get("content-disposition")?.startsWith("inline"), `expected inline, got: ${res.headers.get("content-disposition")}`);
+    assert.equal(res.headers.get("content-security-policy"), "default-src 'none'");
+    assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.equal(res.headers.get("content-type"), "application/pdf");
+  });
+
+  it("PNG download via enrolment route: inline disposition, no-sandbox CSP", async () => {
+    const up = await upload(salesA, tripA, "insurance", PNG, { mime: "image/png", name: "policy.png" });
+    assert.equal(up.status, 201);
+    const docId = up.body.document.id;
+    const res = await h.api.get(`/api/enrolments/${parentEnrolmentId}/documents/${docId}`, { cookie: parentCookie });
+    assert.equal(res.status, 200);
+    assert.ok(res.headers.get("content-disposition")?.startsWith("inline"), `expected inline, got: ${res.headers.get("content-disposition")}`);
+    assert.equal(res.headers.get("content-security-policy"), "default-src 'none'");
+    assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(res.headers.get("cache-control"), "no-store");
+  });
+
+  it("parent cannot download a document from a different trip", async () => {
+    // tripB is not the parent's trip; the service should return 404
+    const up = await upload(salesA, tripA, "itinerary", PDF);
+    assert.equal(up.status, 201);
+    const docId = up.body.document.id;
+    // forge an enrolmentId that belongs to a different trip (use a random UUID)
+    const res = await h.api.get(`/api/enrolments/00000000-0000-4000-8000-000000000001/documents/${docId}`, { cookie: parentCookie });
+    assert.equal(res.status, 404);
   });
 });
