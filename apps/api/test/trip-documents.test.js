@@ -363,7 +363,7 @@ describe("download response headers", () => {
   it("WebP download: inline disposition and no-sandbox CSP (confirms all allowed MIME types are inline)", async () => {
     // All types in ALLOWED_MIME_TYPES (pdf, jpeg, png, webp) are also in INLINE_TYPES.
     // The attachment/sandbox branch in routes.js is a forward-compatibility guard for future MIME types.
-    const WEBP = Buffer.from("RIFF\x00\x00\x00\x00WEBP", "binary"); // 12 bytes: RIFF at 0-3, WEBP at 8-11
+    const WEBP = Buffer.from("RIFF\x00\x00\x00\x00WEBPVP8 \x00\x00\x00\x00\x00\x00", "binary"); // 18 bytes: RIFF at 0-3, WEBP at 8-11, >= 16 required by sniffImageType
     const up = await upload(salesA, tripA, "transport", WEBP, { mime: "image/webp", name: "photo.webp" });
     assert.equal(up.status, 201);
     const docId = up.body.document.id;
